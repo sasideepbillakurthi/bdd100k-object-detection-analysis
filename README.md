@@ -38,8 +38,10 @@ Docker.
 
 ---
 
+
 ## Repository Structure
 
+```text
 bdd100k-object-detection-analysis/
 ├── src/
 │   ├── config.py        # Global configuration
@@ -58,8 +60,7 @@ bdd100k-object-detection-analysis/
 ├── requirements.txt
 ├── README.md
 └── REPORT.md
-
----
+```
 
 ## Data Analysis
 
@@ -172,6 +173,7 @@ constraints.
 
 Expected directory structure:
 
+```text
 data/
 ├── images/
 │   ├── train/
@@ -179,8 +181,7 @@ data/
 ├── labels/
 │   ├── bdd100k_labels_images_train.json
 │   └── bdd100k_labels_images_val.json
-
----
+```
 
 ## Coding Standards
 
