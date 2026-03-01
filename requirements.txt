@@ -1,0 +1,18 @@
+# Core scientific stack
+numpy
+pandas
+matplotlib
+
+# Computer vision
+opencv-python
+Pillow
+
+# Deep learning
+torch
+torchvision
+
+# Dashboard & visualization
+streamlit
+
+# Utilities
+tqdm
