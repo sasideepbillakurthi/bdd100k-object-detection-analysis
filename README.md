@@ -75,12 +75,12 @@ The data analysis stage includes:
 All analysis outputs are saved under the outputs/ directory.
 
 ### Run Data Analysis
-
+'''
 python src/analysis.py \
   --labels data/labels/bdd100k_labels_images_train.json \
   --images data/images/train \
   --split train
-
+'''
 Repeat the command for validation by changing the paths and using
 --split val.
 
