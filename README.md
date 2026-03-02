@@ -113,13 +113,13 @@ a baseline object detector.
 - Training for a small number of epochs
 
 ### Run Training (Example)
-
+```text
 python src/train.py \
   --labels data/labels/bdd100k_labels_images_train.json \
   --images data/images/train \
   --epochs 1 \
   --subset 0.02
-
+```
 The trained model is saved to outputs/model.pth.
 
 ---
