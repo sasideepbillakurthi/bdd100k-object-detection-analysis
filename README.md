@@ -75,12 +75,12 @@ The data analysis stage includes:
 All analysis outputs are saved under the outputs/ directory.
 
 ### Run Data Analysis
-
+```text
 python src/analysis.py \
   --labels data/labels/bdd100k_labels_images_train.json \
   --images data/images/train \
   --split train
-
+```
 Repeat the command for validation by changing the paths and using
 --split val.
 
@@ -113,13 +113,13 @@ a baseline object detector.
 - Training for a small number of epochs
 
 ### Run Training (Example)
-
+```text
 python src/train.py \
   --labels data/labels/bdd100k_labels_images_train.json \
   --images data/images/train \
   --epochs 1 \
   --subset 0.02
-
+```
 The trained model is saved to outputs/model.pth.
 
 ---
@@ -140,12 +140,12 @@ outputs/tables/evaluation_metrics.csv
 - Identification of missed detections
 
 ### Run Evaluation
-
+```text
 python src/evaluate.py \
   --labels data/labels/bdd100k_labels_images_val.json \
   --images data/images/val \
   --weights outputs/model.pth
-
+```
 ---
 
 ## Docker Usage
