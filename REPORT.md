@@ -52,7 +52,7 @@ The training split contains 69,863 images with a total of 1,286,871 annotated ob
 
 The distribution of object instances per class is shown in Table 1 and visualized in Figure 1.
 
-Table 1: Object Instance Distribution (Train Split)
+**Table 1: Object Instance Distribution (Train Split)**
 | Class         | Count   | Percentage |
 | ------------- | ------- | ---------- |
 | car           | 713,211 | 55.42%     |
@@ -66,9 +66,11 @@ Table 1: Object Instance Distribution (Train Split)
 | motor         | 3,002   | 0.23%      |
 | train         | 136     | 0.01%      |
 ---
-Observations
-Figure 1 shows the class distribution using a logarithmic scale to better visualize rare classes.
 
+Figure 1 shows the class distribution using a logarithmic scale to better visualize rare classes.
+### Figure 1: Class Distribution (Train Split)
+
+![Class Distribution](figures/class_distribution_train.png)
 
 Observations (from Class Distribution)
 
@@ -90,11 +92,48 @@ Observations (from Class Distribution)
 - Techniques such as **class-balanced sampling, focal loss, or targeted data augmentation** may be required to improve detection performance for rare classes.
 
 
+### 3.2 Train vs Validation Split Analysis
 
+To ensure that the validation dataset is representative of the training data, the class distribution of object instances was compared across the two splits.
+
+### Class Distribution Comparison
+
+The validation dataset contains **185,526 annotated objects** across the same 10 detection classes.  
+Table 6 compares the class distributions between the training and validation splits.
+
+**Table 6: Class Distribution Comparison (Train vs Validation)**
+
+| Class | Train Count | Train % | Val Count | Val % |
+|------|-------------|--------|-----------|-------|
+| car | 713,211 | 55.42% | 102,506 | 55.24% |
+| traffic sign | 239,686 | 18.62% | 34,908 | 18.82% |
+| traffic light | 186,117 | 14.46% | 26,885 | 14.49% |
+| person | 91,349 | 7.10% | 13,262 | 7.15% |
+| truck | 29,971 | 2.33% | 4,245 | 2.29% |
+| bus | 11,672 | 0.91% | 1,597 | 0.86% |
+| bike | 7,210 | 0.56% | 1,007 | 0.54% |
+| rider | 4,517 | 0.35% | 649 | 0.35% |
+| motor | 3,002 | 0.23% | 452 | 0.24% |
+| train | 136 | 0.01% | 15 | 0.01% |
+
+### Observations
+
+- The validation split follows **similar class distribution trends** as the training dataset.
+- The **car class remains the dominant category** in both splits.
+- **Traffic signs and traffic lights** are also among the most frequent classes in both datasets.
+- Rare classes such as **train, motor, and rider** remain highly underrepresented.
+- The **train class appears only 15 times in the validation set**, which further emphasizes its rarity.
+
+### Implications for Model Evaluation
+
+- Since the validation distribution closely matches the training distribution, the validation set is **representative of the training data**.
+- Performance metrics on the validation dataset are therefore **likely to reflect real training behavior**.
+- However, evaluation for **rare classes may be unstable**, as very few validation examples exist for these categories.
+- Metrics for classes such as **train, motor, and rider** should therefore be interpreted with caution.
 
 
 ---
-## 4. Bounding Box Size Distribution
+### 3.3. Bounding Box Size Distribution
 
 To understand the scale of objects in the dataset, **bounding box areas** were analyzed for all annotated objects in the training split. The bounding box area is computed as the product of the **bounding box width and height**.
 
@@ -129,7 +168,7 @@ Figure 2 shows the distribution of bounding box areas using a logarithmic scale.
 - This issue is particularly important for **traffic lights and traffic signs**, which often appear far from the camera.
 - Techniques such as **Feature Pyramid Networks (FPN)**, **higher-resolution feature maps**, and **multi-scale detection strategies** are commonly used to improve detection performance for small objects.
 
-## 5. Aspect Ratio Analysis
+### 3.4. Aspect Ratio Analysis
 
 To analyze the geometric characteristics of annotated objects, the **aspect ratio** of each bounding box was computed. The aspect ratio is defined as the ratio between the bounding box width and height:
 
@@ -172,7 +211,7 @@ Figure 3 shows the distribution of bounding box aspect ratios.
 - However, **extreme aspect ratios** may still be difficult for standard anchors to represent, potentially affecting detection performance.
 - Understanding aspect ratio distribution helps guide **anchor design and bounding box regression strategies** in object detection models.
 
-## 6. Scene Density Analysis
+### 3.5 Scene Density Analysis
 
 In addition to object-level statistics, it is important to analyze the **number of objects present in each image**. This metric reflects the **complexity of driving scenes** and provides insight into how crowded the dataset is.
 
@@ -210,7 +249,7 @@ Figure 4 shows the distribution of the number of objects per image.
 - Object detection models must therefore be capable of **detecting multiple objects in close proximity**.
 - Understanding scene density helps evaluate the **difficulty of the dataset** and guides the design of models that can handle **complex urban driving environments**.
 
-## 7. Small Object Analysis
+### 3.6 Small Object Analysis
 
 Small objects are particularly challenging for object detection models because they occupy very few pixels in the image and contain limited visual information. To quantify this challenge, objects were classified as **small objects** if either their width or height was less than **10 pixels**.
 
@@ -249,7 +288,7 @@ Using this criterion, **135,254 bounding boxes** were identified as small object
 Understanding the proportion of small objects in the dataset helps guide the design of detection models that are robust to **small-scale objects**.
 
 
-## 8. Spatial Distribution of Objects
+### 3.7 Spatial Distribution of Objects
 
 To analyze where objects typically appear within images, the **center coordinates of all bounding boxes** were computed and visualized as a **spatial heatmap**. The resulting visualization is shown in **Figure 5**.
 
@@ -278,18 +317,56 @@ To analyze where objects typically appear within images, the **center coordinate
 - While this bias can help models learn contextual cues, it may **reduce generalization** if objects appear in unusual locations.
 - Understanding spatial patterns helps identify dataset biases and supports the design of models that remain **robust to different camera viewpoints and object positions**.
 
-### 3.2 Train vs Validation Split Analysis
 
-The class distribution between the training and validation splits was compared
-to assess consistency.
+## 3.8 Annotation Anomalies
 
-Findings:
-- Overall class distribution trends are similar between splits.
-- Rare classes are underrepresented in the validation set.
-- Evaluation metrics for rare classes are therefore more sensitive to noise.
+During dataset analysis, several potential annotation anomalies and edge cases were identified. These anomalies can impact model training and evaluation if not properly handled.
 
-This suggests that validation performance for rare classes should be interpreted
-with caution.
+### Extreme Aspect Ratios
+
+Bounding boxes with extremely large or small aspect ratios were observed in the dataset.
+
+- Aspect ratios greater than **5** or smaller than **0.2** were flagged as potential anomalies.
+- These cases may correspond to:
+  - vertically elongated objects such as **traffic lights**
+  - partially visible objects near image boundaries
+  - possible annotation inconsistencies.
+
+Such extreme shapes may make it difficult for anchor-based detectors to match suitable anchor boxes.
+
+### Extremely Small Bounding Boxes
+
+Some bounding boxes have very small dimensions, with areas approaching **1 pixel²**.
+
+These cases typically correspond to:
+
+- distant objects
+- partially occluded objects
+- small infrastructure elements such as traffic lights or signs.
+
+Small objects contain limited visual information and are therefore harder for detection models to recognize.
+
+### Crowded Scenes
+
+Certain images contain **very high numbers of annotated objects**, with some scenes containing **up to 91 objects**.
+
+These crowded scenes introduce challenges such as:
+
+- object occlusion
+- overlapping bounding boxes
+- visually cluttered environments.
+
+Such cases can increase the difficulty of object detection and may lead to missed detections.
+
+### Impact on Model Training
+
+These anomalies highlight potential challenges for object detection models:
+
+- extreme bounding box shapes may affect anchor matching
+- small objects are harder to detect in downsampled feature maps
+- crowded scenes increase occlusion and overlapping detections.
+
+Understanding these cases helps ensure that the dataset is properly interpreted before training detection models.
 
 ### 3.3 Bounding Box Statistics
 
