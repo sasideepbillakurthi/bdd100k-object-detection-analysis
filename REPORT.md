@@ -70,48 +70,37 @@ Observations
 Figure 1 shows the class distribution using a logarithmic scale to better visualize rare classes.
 
 
-The dataset exhibits a strong class imbalance, with a small number of classes dominating the dataset.
+Observations (from Class Distribution)
 
-The car class alone accounts for 55.42% of all annotated objects, meaning that more than half of the dataset consists of cars. This reflects the natural distribution of objects in driving scenes where vehicles are the most common objects encountered by autonomous systems.
+### Observations
 
-Traffic infrastructure is also highly represented. Traffic signs and traffic lights together account for 33.1% of all object instances, highlighting the importance of road infrastructure elements in autonomous driving perception tasks.
+- The dataset shows **significant class imbalance**, with a few classes dominating the distribution.
+- The **car class accounts for 55.42%** of all annotated objects, making it the most frequent category.
+- **Traffic signs (18.62%) and traffic lights (14.46%)** are also highly represented in the dataset.
+- The three most frequent classes (**car, traffic sign, traffic light**) together represent **88.5% of all objects**, indicating a strong **long-tail distribution**.
+- Several classes are **extremely underrepresented**, including **motor (0.23%)**, **rider (0.35%)**, and **train (0.01%)**.
+- The **train class appears only 136 times**, meaning cars appear **over 5,200 times more frequently than trains**.
 
-Overall, the dataset follows a long-tail distribution. The three most frequent classes — car, traffic sign, and traffic light — together represent 88.5% of all annotated objects.
+### Implications for Object Detection
 
-In contrast, several classes are extremely underrepresented. For example, the train class appears only 136 times, representing approximately 0.01% of the dataset. This means that cars appear more than 5,200 times more frequently than trains.
+- Object detection models trained on this dataset may become **biased toward dominant classes**, particularly cars.
+- Rare classes such as **train, rider, and motor** may have **lower detection accuracy** due to limited training examples.
+- The training loss may be **dominated by frequent classes**, making it harder for the model to learn representations for rare categories.
+- The model may learn **strong priors for common objects**, potentially reducing sensitivity to rare but important objects.
+- Techniques such as **class-balanced sampling, focal loss, or targeted data augmentation** may be required to improve detection performance for rare classes.
 
-Implications for Object Detection
 
-Such class imbalance can significantly influence the behavior of object detection models. Models trained on this dataset may become biased toward frequently occurring classes such as cars, while performance on rare classes like trains, riders, or motorcycles may be limited due to the small number of training examples.
 
-To address this issue, techniques such as class-balanced sampling, focal loss, or data augmentation for rare classes are commonly used when training object detection models on long-tail datasets.
 
-4. Bounding Box Size Distribution
-
-To understand the scale of objects in the dataset, bounding box areas were analyzed for all annotated objects in the training split. Bounding box area is computed as the product of bounding box width and height.
-
-The dataset contains 1,286,871 bounding boxes. Summary statistics of the bounding box areas are shown in Table 2, and the distribution is visualized in Figure 2.
-
-### 3.2 Train vs Validation Split Analysis
-
-The class distribution between the training and validation splits was compared
-to assess consistency.
-
-Findings:
-- Overall class distribution trends are similar between splits.
-- Rare classes are underrepresented in the validation set.
-- Evaluation metrics for rare classes are therefore more sensitive to noise.
-
-This suggests that validation performance for rare classes should be interpreted
-with caution.
 
 ---
-4. Bounding Box Size Distribution
+## 4. Bounding Box Size Distribution
 
-To understand the scale of objects in the dataset, bounding box areas were analyzed for all annotated objects in the training split. Bounding box area is computed as the product of bounding box width and height.
+To understand the scale of objects in the dataset, **bounding box areas** were analyzed for all annotated objects in the training split. The bounding box area is computed as the product of the **bounding box width and height**.
 
-The dataset contains 1,286,871 bounding boxes. Summary statistics of the bounding box areas are shown in Table 2, and the distribution is visualized in Figure 2.
-Table 2: Bounding Box Area Statistics (Train Split)
+The dataset contains **1,286,871 bounding boxes**. Summary statistics of the bounding box areas are shown in **Table 2**, and the distribution is visualized in **Figure 2**.
+
+**Table 2: Bounding Box Area Statistics (Train Split)**
 | Statistic          | Value           |
 | ------------------ | --------------- |
 | Count              | 1,286,871       |
@@ -125,55 +114,32 @@ Table 2: Bounding Box Area Statistics (Train Split)
 
 Figure 2 shows the distribution of bounding box areas using a logarithmic scale.
 
-Observations
+### Observations
 
-The distribution of bounding box areas is highly skewed toward small objects. The median bounding box area is only 817 pixels², meaning that half of the objects occupy less than this area in the image.
+- The distribution of bounding box areas is **highly skewed toward small objects**.
+- The **median area is 817 pixels²**, meaning that half of the objects occupy less than this area.
+- The **mean area (6,776 pixels²)** is much larger than the median, indicating the presence of a few **very large objects** that increase the average.
+- **25% of objects are smaller than 304 pixels²**, and **75% are smaller than 3,022 pixels²**, showing that most objects occupy relatively small image regions.
+- Bounding box areas range from **0.87 pixels² to 917,709 pixels²**, reflecting a large variation in object scales.
 
-The mean area (6,776 pixels²) is significantly larger than the median, indicating the presence of a small number of very large objects that increase the average.
+### Implications for Object Detection
 
-Further analysis shows that:
+- The high proportion of **small objects makes detection more challenging**, as they contain fewer pixels and visual details.
+- Small objects are more likely to be lost in **downsampled feature maps** in deep neural networks.
+- This issue is particularly important for **traffic lights and traffic signs**, which often appear far from the camera.
+- Techniques such as **Feature Pyramid Networks (FPN)**, **higher-resolution feature maps**, and **multi-scale detection strategies** are commonly used to improve detection performance for small objects.
 
-25% of objects occupy less than 304 pixels²
+## 5. Aspect Ratio Analysis
 
-75% of objects are smaller than 3,022 pixels²
+To analyze the geometric characteristics of annotated objects, the **aspect ratio** of each bounding box was computed. The aspect ratio is defined as the ratio between the bounding box width and height:
 
-This indicates that most objects occupy relatively small regions of the image.
+\[
+\text{Aspect Ratio} = \frac{\text{width}}{\text{height}}
+\]
 
-The smallest bounding boxes have an area of 0.87 pixels², which likely corresponds to extremely distant or partially visible objects. In contrast, the largest bounding boxes reach 917,709 pixels², typically corresponding to nearby vehicles such as buses or trucks.
+Aspect ratio analysis helps identify the **typical shapes of objects in the dataset** and detect **extreme bounding boxes** that may affect detection performance.
 
-Implications for Object Detection
-
-The large number of small objects presents a significant challenge for object detection models. Small objects contain fewer pixels and are therefore harder to detect, particularly when feature maps are downsampled in deep convolutional networks.
-
-This challenge is particularly relevant for classes such as traffic lights and traffic signs, which often appear far from the camera and therefore occupy very small regions of the image.
-
-Modern detection architectures address this issue using techniques such as:
-
-Feature Pyramid Networks (FPN) for multi-scale detection
-
-higher-resolution feature maps
-
-specialized small-object detection strategies
-
-Understanding the size distribution of objects helps guide the design of detection models and training strategies for autonomous driving perception tasks.
-
-5. . Aspect Ratio Analysis
-
-To analyze the geometric characteristics of annotated objects, the aspect ratio of each bounding box was computed. The aspect ratio is defined as the ratio between the bounding box width and height:
-
-Aspect Ratio
-=
-width
-height
-Aspect Ratio=
-height
-width
-	​
-
-
-Aspect ratio analysis helps identify the typical shapes of objects in the dataset and detect extreme bounding boxes that may affect detection performance.
-
-The summary statistics of aspect ratios for the training split are shown in Table 3, and the distribution is visualized in Figure 3.
+The summary statistics of aspect ratios for the training split are shown in **Table 3**, and the distribution is visualized in **Figure 3**.
 
 Table 3: Bounding Box Aspect Ratio Statistics (Train Split)
 | Statistic          | Value     |
@@ -190,39 +156,31 @@ Table 3: Bounding Box Aspect Ratio Statistics (Train Split)
 
 Figure 3 shows the distribution of bounding box aspect ratios.
 
-Observations
+### Observations
 
-The median aspect ratio is 1.10, indicating that most objects are slightly wider than they are tall. This is consistent with the dominance of vehicle classes such as cars, trucks, and buses, which typically have horizontally elongated shapes.
+- The **median aspect ratio is 1.10**, indicating that most objects are slightly wider than they are tall.
+- Approximately **50% of objects have aspect ratios between 0.74 and 1.49**, meaning most bounding boxes are close to square or moderately rectangular.
+- The **mean aspect ratio (1.22)** is close to the median, suggesting that the majority of object shapes are relatively consistent.
+- The dataset also contains **extreme aspect ratios**, ranging from **0.0015 to 496.83**, indicating the presence of very tall or very wide bounding boxes.
+- These extreme values may arise from **elongated objects (e.g., traffic lights)**, **partially visible objects near image boundaries**, or **annotation inconsistencies**.
 
-Approximately 50% of objects have aspect ratios between 0.74 and 1.49, suggesting that the majority of bounding boxes are close to square or moderately rectangular.
+### Implications for Object Detection
 
-However, the dataset also contains several extreme aspect ratios. The smallest observed value is 0.0015, indicating extremely tall and narrow bounding boxes, while the maximum aspect ratio reaches 496.83, corresponding to extremely wide bounding boxes.
+- Aspect ratio distribution is important for **anchor-based detectors** such as Faster R-CNN or YOLO.
+- If anchor box shapes do not match the **true object shape distribution**, the model may struggle to localize objects accurately.
+- Since most aspect ratios fall between **0.74 and 1.49**, a **limited set of anchor shapes** may capture the majority of objects effectively.
+- However, **extreme aspect ratios** may still be difficult for standard anchors to represent, potentially affecting detection performance.
+- Understanding aspect ratio distribution helps guide **anchor design and bounding box regression strategies** in object detection models.
 
-These extreme values may arise due to:
+## 6. Scene Density Analysis
 
-vertically elongated objects such as traffic lights
+In addition to object-level statistics, it is important to analyze the **number of objects present in each image**. This metric reflects the **complexity of driving scenes** and provides insight into how crowded the dataset is.
 
-partially visible objects near image boundaries
+Scene density was computed by counting the number of annotated objects in each image of the **training split**.
 
-annotation inconsistencies
+The training split contains **69,863 images**. The summary statistics for the number of objects per image are shown in **Table 4**, and the distribution is visualized in **Figure 4**.
 
-Implications for Object Detection
-
-Bounding box aspect ratios play an important role in object detection models that rely on anchor boxes, such as Faster R-CNN or YOLO. If anchor box shapes do not adequately represent the true distribution of object shapes, the detector may struggle to localize objects accurately.
-
-The relatively concentrated aspect ratio distribution between 0.74 and 1.49 suggests that most objects can be represented using a limited set of anchor shapes. However, the presence of extreme aspect ratios indicates that some objects may still be difficult to capture using standard anchor configurations.
-
-Understanding the aspect ratio distribution is therefore useful for designing anchor boxes and improving bounding box regression performance in object detection models.
-
-6. Scene Density Analysis
-
-In addition to object-level statistics, it is important to analyze the number of objects present in each image. This metric reflects the complexity of driving scenes and provides insight into how crowded the dataset is.
-
-Scene density was computed by counting the number of annotated objects in each image of the training split.
-
-The training split contains 69,863 images. The summary statistics for the number of objects per image are shown in Table 4, and the distribution is visualized in Figure 4.
-
-Table 4: Objects per Image Statistics (Train Split)
+**Table 4: Objects per Image Statistics (Train Split)**
 | Statistic          | Value  |
 | ------------------ | ------ |
 | Count              | 69,863 |
@@ -236,116 +194,102 @@ Table 4: Objects per Image Statistics (Train Split)
 
 Figure 4 shows the distribution of the number of objects per image.
 
-Observations
+### Observations
 
-On average, each image contains approximately 18.4 annotated objects, indicating that driving scenes in the dataset typically contain multiple objects such as vehicles, pedestrians, and traffic infrastructure.
+- Each image contains on average **18.4 annotated objects**, indicating that most driving scenes contain multiple objects such as vehicles, pedestrians, and traffic infrastructure.
+- The **median number of objects per image is 17**, suggesting that most scenes have a moderate level of complexity.
+- Some scenes are highly dense, with **up to 91 objects in a single image**, likely corresponding to crowded urban environments.
+- **25% of images contain more than 24 objects**, while **75% contain at least 11 objects**, indicating that crowded scenes are relatively common.
 
-The median number of objects per image is 17, which suggests that most scenes contain a moderate number of objects.
+### Implications for Object Detection
 
-However, the dataset also includes highly complex scenes. The most crowded images contain up to 91 objects, which likely correspond to dense urban environments with heavy traffic and pedestrian activity.
+- High scene density introduces challenges such as:
+  - **Occlusion**, where objects partially block each other.
+  - **Overlapping bounding boxes** between nearby objects.
+  - **Visually cluttered scenes**, which make object boundaries harder to distinguish.
+- Object detection models must therefore be capable of **detecting multiple objects in close proximity**.
+- Understanding scene density helps evaluate the **difficulty of the dataset** and guides the design of models that can handle **complex urban driving environments**.
 
-Further analysis shows that:
+## 7. Small Object Analysis
 
-25% of images contain more than 24 objects
+Small objects are particularly challenging for object detection models because they occupy very few pixels in the image and contain limited visual information. To quantify this challenge, objects were classified as **small objects** if either their width or height was less than **10 pixels**.
 
-75% of images contain at least 11 objects
+Using this criterion, **135,254 bounding boxes** were identified as small objects in the training split.
 
-This indicates that crowded scenes are common in the dataset.
+**Table 5: Small Object Statistics (Train Split)**
 
-Implications for Object Detection
+| Metric | Value |
+|------|------|
+| Total Objects | 1,286,871 |
+| Small Objects (<10 px) | 135,254 |
+| Small Object Ratio | 10.51% |
 
-High scene density introduces several challenges for object detection models:
+### Observations
 
-Occlusion: objects partially block each other
+- Approximately **10.51% of all annotated objects are small objects**, meaning roughly **one out of every ten objects** occupies a very small region of the image.
+- Small objects often correspond to objects that are **far from the camera** or naturally small in size.
+- In autonomous driving scenes, small objects frequently include:
+  - traffic lights  
+  - traffic signs  
+  - distant pedestrians  
+  - far-away vehicles
+- These objects occupy only a **few pixels in the image**, making them difficult to detect.
 
-Overlapping bounding boxes
+### Implications for Object Detection
 
-Visually cluttered environments
+- Small objects contain **limited visual detail**, which makes detection more challenging.
+- They may disappear in **downsampled feature maps** in deep neural networks.
+- Small objects are more sensitive to **image noise and compression artifacts**.
+- Reliable detection of small objects is critical for autonomous driving systems, since **traffic lights and road signs** often fall into this category.
+- Modern detection architectures address this challenge using techniques such as:
+  - **Feature Pyramid Networks (FPN)** for multi-scale feature representation
+  - **higher-resolution feature maps**
+  - **specialized small-object detection strategies**
 
-These challenges are particularly common in urban driving scenarios. Object detectors must therefore be capable of accurately identifying multiple objects in close proximity.
+Understanding the proportion of small objects in the dataset helps guide the design of detection models that are robust to **small-scale objects**.
 
-Understanding scene density helps evaluate the difficulty of the dataset and informs the design of detection models capable of handling crowded environments.
 
-7. Small Object Analysis
+## 8. Spatial Distribution of Objects
 
-Small objects are particularly challenging for object detection models because they occupy very few pixels in the image and contain limited visual information. To quantify this challenge, objects were classified as small objects if either their width or height was less than 10 pixels.
+To analyze where objects typically appear within images, the **center coordinates of all bounding boxes** were computed and visualized as a **spatial heatmap**. The resulting visualization is shown in **Figure 5**.
 
-Using this criterion, 135,254 bounding boxes were identified as small objects in the training split.
+**Figure 5: Spatial heatmap of bounding box centers in the training split.**
 
-Table 5: Small Object Statistics (Train Split)
-Metric	Value
-Total Objects	1,286,871
-Small Objects (<10 px)	135,254
-Small Object Ratio	10.51%
-Observations
+### Observations
 
-The analysis shows that approximately 10.51% of all annotated objects are small objects. This means that roughly one out of every ten objects occupies a very small region of the image.
+- The heatmap shows a **strong spatial concentration of objects near the center of the image**, particularly around the horizontal midpoint.
+- The highest density occurs around **x ≈ 600 pixels**, corresponding to the center of the camera's field of view.
+- Vertically, the highest concentration occurs around **y ≈ 320–350 pixels**, which represents the region where the road and vehicles in front of the ego vehicle are typically visible.
+- Object density gradually **decreases toward the top and bottom edges of the image**, indicating fewer annotated objects in these areas.
+- This spatial pattern reflects the natural geometry of driving scenes:
 
-Small objects typically correspond to objects that are far from the camera or naturally small in physical size. In autonomous driving scenarios, this often includes:
+| Image Region | Typical Objects |
+|--------------|----------------|
+| Upper region | traffic lights, traffic signs |
+| Middle region | vehicles, pedestrians |
+| Lower region | nearby vehicles, road surface |
 
-traffic lights
+- The central concentration also indicates that most annotated objects are **directly in front of the ego vehicle**, consistent with the placement of forward-facing cameras in autonomous driving systems.
 
-traffic signs
+### Implications for Object Detection
 
-distant pedestrians
+- The spatial distribution introduces **location bias** in the dataset.
+- Detection models may implicitly learn that important objects are **more likely to appear near the center of the image**.
+- While this bias can help models learn contextual cues, it may **reduce generalization** if objects appear in unusual locations.
+- Understanding spatial patterns helps identify dataset biases and supports the design of models that remain **robust to different camera viewpoints and object positions**.
 
-far-away vehicles
+### 3.2 Train vs Validation Split Analysis
 
-Because these objects appear far from the vehicle-mounted camera, they occupy only a few pixels in the image.
+The class distribution between the training and validation splits was compared
+to assess consistency.
 
-Implications for Object Detection
+Findings:
+- Overall class distribution trends are similar between splits.
+- Rare classes are underrepresented in the validation set.
+- Evaluation metrics for rare classes are therefore more sensitive to noise.
 
-Small objects present several challenges for object detection models:
-
-they contain limited visual detail
-
-they may disappear in downsampled feature maps
-
-they are more sensitive to image noise and compression
-
-Detecting small objects reliably is crucial for autonomous driving applications, as traffic lights and road signs often fall into this category.
-
-Modern object detection architectures address this challenge using techniques such as:
-
-Feature Pyramid Networks (FPN) for multi-scale feature representation
-
-higher-resolution feature maps
-
-specialized small-object detection strategies
-
-Understanding the proportion of small objects in the dataset helps guide the design of detection models that are robust to small-scale objects.
-
-8. Spatial Distribution of Objects
-
-To analyze where objects typically appear within images, the center coordinates of all bounding boxes were computed and visualized as a spatial heatmap. The resulting visualization is shown in Figure 5.
-
-Figure 5: Spatial heatmap of bounding box centers in the training split.
-
-Observations
-
-The heatmap reveals a clear spatial concentration of objects near the center of the image, particularly around the horizontal midpoint of the frame. The highest density of object centers occurs approximately near x ≈ 600 pixels, which corresponds to the center of the camera's field of view.
-
-Vertically, the highest concentration occurs around y ≈ 320–350 pixels, which corresponds to the region where the road and vehicles in front of the ego vehicle are typically visible.
-
-The density gradually decreases toward the top and bottom edges of the image, indicating that objects are less frequently annotated near these regions.
-
-This spatial pattern reflects the natural geometry of driving scenes:
-
-Image Region	Typical Objects
-Upper region	traffic lights, traffic signs
-Middle region	vehicles and pedestrians
-Lower region	nearby vehicles and road surface
-
-The concentration around the center also indicates that the dataset primarily captures objects that are directly in front of the ego vehicle, which is consistent with forward-facing camera placement in autonomous driving systems.
-
-Implications for Object Detection
-
-The spatial distribution reveals a form of location bias in the dataset. Because objects appear more frequently near the center of the image, detection models may implicitly learn that important objects are likely to appear in this region.
-
-While this bias can help models learn useful contextual cues, it may also reduce generalization if objects appear in unusual locations or if the camera viewpoint changes.
-
-Understanding these spatial patterns is therefore useful for evaluating dataset bias and designing detection models that remain robust under varying camera perspectives.
-
+This suggests that validation performance for rare classes should be interpreted
+with caution.
 
 ### 3.3 Bounding Box Statistics
 
