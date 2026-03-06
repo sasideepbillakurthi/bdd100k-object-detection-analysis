@@ -1,18 +1,34 @@
-# Core scientific stack
+# Deep learning
+torch>=2.0
+torchvision>=0.15
+
+# YOLOv8
+ultralytics>=8.0
+
+# Data processing
 numpy
 pandas
-matplotlib
 
-# Computer vision
+# Visualization
+matplotlib
+seaborn
+
+# Image processing
 opencv-python
 Pillow
 
-# Deep learning
-torch
-torchvision
+# Progress bars
+tqdm
 
-# Dashboard & visualization
+# YAML support (for YOLO config)
+pyyaml
+
+# Dashboard
 streamlit
 
 # Utilities
-tqdm
+scikit-learn
+
+# Optional but useful
+ipython
+jupyter
