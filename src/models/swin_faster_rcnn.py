@@ -93,9 +93,17 @@ def build_model():
     )
 
     model = FasterRCNN(
-        backbone=backbone,
-        num_classes=num_classes,
-        rpn_anchor_generator=anchor_generator,
-    )
+    backbone=backbone,
+    num_classes=num_classes,
+    rpn_anchor_generator=anchor_generator,
+    
+    # 1. Image Resizing: Forces input to 224x224 to match Swin's expectations
+    min_size=224,
+    max_size=224,
+    
+    # 2. Normalization: Uses ImageNet stats (Swin was trained with these)
+    image_mean=[0.485, 0.456, 0.406],
+    image_std=[0.229, 0.224, 0.225]
+)
 
     return model
