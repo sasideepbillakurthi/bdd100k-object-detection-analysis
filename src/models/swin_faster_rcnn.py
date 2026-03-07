@@ -34,6 +34,7 @@ class SwinBackbone(nn.Module):
             pretrained=True,
             features_only=True,
             dynamic_img_size=True
+            img_size=(224, 224)
         )
 
         # Swin feature channels
