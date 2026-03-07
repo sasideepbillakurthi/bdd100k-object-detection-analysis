@@ -12,25 +12,22 @@ from timm import create_model
 from src.config import DETECTION_CLASSES
 
 
-class SwinBackboneWithFPN(nn.Module):
+class SwinBackbone(nn.Module):
 
     def __init__(self):
         super().__init__()
 
-        # Swin backbone
-        self.body = create_model(
+        self.backbone = create_model(
             "swin_tiny_patch4_window7_224",
             pretrained=True,
             features_only=True
         )
 
-        # remove fixed input size constraint
-        self.body.patch_embed.img_size = None
+        # Disable fixed input size restriction
+        self.backbone.patch_embed.img_size = None
 
-        # channel sizes from Swin stages
-        in_channels_list = self.body.feature_info.channels()
+        in_channels_list = self.backbone.feature_info.channels()
 
-        # Feature Pyramid Network
         self.fpn = FeaturePyramidNetwork(
             in_channels_list=in_channels_list,
             out_channels=256
@@ -40,10 +37,12 @@ class SwinBackboneWithFPN(nn.Module):
 
     def forward(self, x):
 
-        features = self.body(x)
+        features = self.backbone(x)
 
+        # Convert NHWC -> NCHW
         features = {
-            str(i): f for i, f in enumerate(features)
+            str(i): f.permute(0, 3, 1, 2)
+            for i, f in enumerate(features)
         }
 
         features = self.fpn(features)
@@ -53,7 +52,7 @@ class SwinBackboneWithFPN(nn.Module):
 
 def build_model():
 
-    backbone = SwinBackboneWithFPN()
+    backbone = SwinBackbone()
 
     num_classes = len(DETECTION_CLASSES) + 1
 
