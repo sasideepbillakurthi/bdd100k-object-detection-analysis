@@ -57,8 +57,8 @@ def build_model():
     num_classes = len(DETECTION_CLASSES) + 1
 
     anchor_generator = AnchorGenerator(
-    sizes=((16,), (32,), (64,), (128,)),
-    aspect_ratios=((0.5, 1.0, 2.0),) * 4,
+    sizes=((8,), (16,), (32,), (64,), (128,)),
+    aspect_ratios=((0.33,0.5,1.0,2.0,3.0),)*5,
     )
 
     model = FasterRCNN(
