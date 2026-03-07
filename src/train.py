@@ -1,18 +1,18 @@
 """
-Unified training script for BDD100K object detection.
+Training script for BDD100K object detection.
 
 Supports two models:
 1. Faster R-CNN (ResNet50 + FPN)
-2. YOLOv8 (Ultralytics)
+2. Swin Transformer + Faster R-CNN
 
 Example
 -------
 
-Train FasterRCNN
-python src/train.py --model fasterrcnn --images data/images --labels labels.json
+Train ResNet FasterRCNN
+python -m src.train --model fasterrcnn --images data/images --labels labels.json
 
-Train YOLOv8
-python src/train.py --model yolov8 --data-yaml data/bdd.yaml
+Train Swin FasterRCNN
+python -m src.train --model swin --images data/images --labels labels.json
 """
 
 import argparse
@@ -26,16 +26,22 @@ from torchvision.transforms import functional as F
 from src.config import DETECTION_CLASSES
 from src.parser import load_annotations
 from src.dataset import BDDDetectionDataset
-from src.models.faster_rcnn import build_model
-from src.models.yolov8 import train_model as train_yolo
+
+from src.models.faster_rcnn import build_model as build_resnet_fasterrcnn
+from src.models.swin_faster_rcnn import build_model as build_swin_fasterrcnn
 
 
 # ---------------------------------------------------------
-# FasterRCNN utilities
+# Class mappings
 # ---------------------------------------------------------
 
 CLASS_TO_IDX = {c: i + 1 for i, c in enumerate(DETECTION_CLASSES)}
 IDX_TO_CLASS = {v: k for k, v in CLASS_TO_IDX.items()}
+
+
+# ---------------------------------------------------------
+# Dataset wrapper
+# ---------------------------------------------------------
 
 class BDDTorchDataset(torch.utils.data.Dataset):
     """
@@ -68,9 +74,7 @@ class BDDTorchDataset(torch.utils.data.Dataset):
         labels = []
 
         for ann in annotations:
-
             bbox = ann.bbox
-
             boxes.append([bbox.x1, bbox.y1, bbox.x2, bbox.y2])
             labels.append(CLASS_TO_IDX[ann.category])
 
@@ -85,6 +89,10 @@ class BDDTorchDataset(torch.utils.data.Dataset):
 def collate_fn(batch):
     return tuple(zip(*batch))
 
+
+# ---------------------------------------------------------
+# Training loop
+# ---------------------------------------------------------
 
 def train_one_epoch(model, dataloader, optimizer, device):
 
@@ -111,13 +119,12 @@ def train_one_epoch(model, dataloader, optimizer, device):
 
 
 # ---------------------------------------------------------
-# FasterRCNN training pipeline
+# Training pipeline
 # ---------------------------------------------------------
 
-def train_fasterrcnn(args):
+def train_detector(args):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     print(f"[INFO] Device: {device}")
 
     annotations = load_annotations(args.labels)
@@ -134,9 +141,22 @@ def train_fasterrcnn(args):
         batch_size=args.batch_size,
         shuffle=True,
         collate_fn=collate_fn,
+        num_workers=4,
+        pin_memory=True
     )
 
-    model = build_model(len(DETECTION_CLASSES))
+    # -------------------------------------------------
+    # Model selection
+    # -------------------------------------------------
+
+    if args.model == "fasterrcnn":
+        model = build_resnet_fasterrcnn(len(DETECTION_CLASSES))
+
+    elif args.model == "swin":
+        model = build_swin_fasterrcnn()
+
+    else:
+        raise ValueError("Unsupported model")
 
     model.to(device)
 
@@ -146,6 +166,10 @@ def train_fasterrcnn(args):
         momentum=0.9,
         weight_decay=0.0005,
     )
+
+    # -------------------------------------------------
+    # Training
+    # -------------------------------------------------
 
     for epoch in range(args.epochs):
 
@@ -166,19 +190,6 @@ def train_fasterrcnn(args):
 
 
 # ---------------------------------------------------------
-# YOLOv8 pipeline
-# ---------------------------------------------------------
-
-def train_yolov8(args):
-
-    train_yolo(
-        data_yaml=args.data_yaml,
-        epochs=args.epochs,
-        batch_size=args.batch_size,
-    )
-
-
-# ---------------------------------------------------------
 # CLI
 # ---------------------------------------------------------
 
@@ -190,7 +201,7 @@ def parse_args():
 
     parser.add_argument(
         "--model",
-        choices=["fasterrcnn", "yolov8"],
+        choices=["fasterrcnn", "swin"],
         required=True,
         help="Model type"
     )
@@ -198,20 +209,15 @@ def parse_args():
     parser.add_argument(
         "--images",
         type=Path,
+        required=True,
         help="Image directory"
     )
 
     parser.add_argument(
         "--labels",
         type=Path,
+        required=True,
         help="Annotation JSON"
-    )
-
-    parser.add_argument(
-        "--data-yaml",
-        type=str,
-        default="data/bdd.yaml",
-        help="YOLO dataset config"
     )
 
     parser.add_argument(
@@ -236,7 +242,7 @@ def parse_args():
     parser.add_argument(
         "--output",
         type=str,
-        default="outputs/models/fasterrcnn.pth"
+        default="outputs/models/model.pth"
     )
 
     return parser.parse_args()
@@ -250,17 +256,9 @@ def main():
 
     args = parse_args()
 
-    if args.model == "fasterrcnn":
+    print(f"[INFO] Training {args.model}")
 
-        print("[INFO] Training FasterRCNN")
-
-        train_fasterrcnn(args)
-
-    elif args.model == "yolov8":
-
-        print("[INFO] Training YOLOv8")
-
-        train_yolov8(args)
+    train_detector(args)
 
 
 if __name__ == "__main__":

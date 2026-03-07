@@ -1,5 +1,5 @@
-from ultralytics import YOLO
+import urllib.request
 
-model = YOLO("best.pt")
+url = "https://dl.cv.ethz.ch/bdd100k/det/models/faster_rcnn_swin-t_fpn_3x_det_bdd100k.pth"
 
-print(model.model.nc)
+urllib.request.urlretrieve(url, "swin_bdd100k.pth")

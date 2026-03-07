@@ -16,7 +16,7 @@ seaborn
 # Image processing
 opencv-python
 Pillow
-
+timm
 # Progress bars
 tqdm
 
