@@ -34,7 +34,7 @@ class SwinBackbone(nn.Module):
             pretrained=True,
             features_only=True,
             dynamic_img_size=True,
-            img_size=(224, 224)
+            img_size=(448, 448)
         )
 
         # Swin feature channels
@@ -99,8 +99,8 @@ def build_model():
     rpn_anchor_generator=anchor_generator,
     
     # 1. Image Resizing: Forces input to 224x224 to match Swin's expectations
-    min_size=224,
-    max_size=224,
+    min_size=448,
+    max_size=448,
     
     # 2. Normalization: Uses ImageNet stats (Swin was trained with these)
     image_mean=[0.485, 0.456, 0.406],
