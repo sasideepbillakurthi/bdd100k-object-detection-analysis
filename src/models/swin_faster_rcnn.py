@@ -6,7 +6,7 @@ from collections import OrderedDict
 from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.rpn import AnchorGenerator
 from torchvision.ops import FeaturePyramidNetwork
-
+from torchvision.ops.feature_pyramid_network import LastLevelMaxPool
 from timm import create_model
 
 from src.config import DETECTION_CLASSES
@@ -30,7 +30,8 @@ class SwinBackbone(nn.Module):
 
         self.fpn = FeaturePyramidNetwork(
             in_channels_list=in_channels_list,
-            out_channels=256
+            out_channels=256,
+            extra_blocks=LastLevelMaxPool()
         )
 
         self.out_channels = 256
