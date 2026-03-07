@@ -33,7 +33,7 @@ class SwinBackbone(nn.Module):
             "swin_tiny_patch4_window7_224",
             pretrained=True,
             features_only=True,
-            img_size=768
+            dynamic_img_size=True
         )
 
         # Swin feature channels
