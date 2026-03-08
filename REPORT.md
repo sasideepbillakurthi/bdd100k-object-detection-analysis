@@ -70,7 +70,7 @@ The distribution of object instances per class is shown in Table 1 and visualize
 Figure 1 shows the class distribution using a logarithmic scale to better visualize rare classes.
 ### Figure 1: Class Distribution (Train Split)
 
-![Class Distribution](figures/class_distribution_train.png)
+![Class Distribution](outputs/figures/class_distribution_train.png)
 
 Observations (from Class Distribution)
 
@@ -172,9 +172,9 @@ Figure 2 shows the distribution of bounding box areas using a logarithmic scale.
 
 To analyze the geometric characteristics of annotated objects, the **aspect ratio** of each bounding box was computed. The aspect ratio is defined as the ratio between the bounding box width and height:
 
-\[
+$$
 \text{Aspect Ratio} = \frac{\text{width}}{\text{height}}
-\]
+$$
 
 Aspect ratio analysis helps identify the **typical shapes of objects in the dataset** and detect **extreme bounding boxes** that may affect detection performance.
 
