@@ -6,7 +6,12 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms import functional as F
 
-from src.config import DETECTION_CLASSES
+from src.config import (
+    DETECTION_CLASSES,
+    IMAGE_DIR_TRAIN,
+    LABEL_FILE_TRAIN,
+)
+
 from src.parser import load_annotations
 from src.dataset import BDDDetectionDataset
 
@@ -83,17 +88,13 @@ def collate_fn(batch):
 def train_one_epoch(model, dataloader, optimizer, device):
 
     model.train()
-
     total_loss = 0
 
     for images, targets in dataloader:
 
         images = [img.to(device) for img in images]
 
-        targets = [
-            {k: v.to(device) for k, v in t.items()}
-            for t in targets
-        ]
+        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
         loss_dict = model(images, targets)
 
@@ -119,14 +120,21 @@ def train_detector(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[INFO] Device: {device}")
 
-    annotations = load_annotations(args.labels)
+    # -------------------------------------------------
+    # Dataset paths from config
+    # -------------------------------------------------
 
-    dataset = BDDDetectionDataset(args.images, annotations)
+    image_dir = IMAGE_DIR_TRAIN
+    label_file = LABEL_FILE_TRAIN
 
-    torch_dataset = BDDTorchDataset(
-        dataset,
-        subset_ratio=args.subset
-    )
+    print(f"[INFO] Images: {image_dir}")
+    print(f"[INFO] Labels: {label_file}")
+
+    annotations = load_annotations(label_file)
+
+    dataset = BDDDetectionDataset(image_dir, annotations)
+
+    torch_dataset = BDDTorchDataset(dataset, subset_ratio=args.subset)
 
     dataloader = DataLoader(
         torch_dataset,
@@ -165,36 +173,10 @@ def train_detector(args):
         gamma=0.1
     )
 
-    # -------------------------------------------------
-    # Resume training if checkpoint exists
-    # -------------------------------------------------
-
-    start_epoch = 0
-
-    if args.resume is not None:
-
-        checkpoint = torch.load(args.resume, map_location=device)
-
-        model.load_state_dict(checkpoint["model_state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-
-        start_epoch = checkpoint["epoch"]
-
-        print(f"[INFO] Resuming from epoch {start_epoch}")
-
-    # -------------------------------------------------
-    # Checkpoint directory
-    # -------------------------------------------------
-
     checkpoint_dir = Path("outputs/checkpoints")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    # -------------------------------------------------
-    # Training
-    # -------------------------------------------------
-
-    for epoch in range(start_epoch, args.epochs):
+    for epoch in range(args.epochs):
 
         print(f"[INFO] Epoch {epoch+1}/{args.epochs}")
 
@@ -209,7 +191,6 @@ def train_detector(args):
 
         print(f"[INFO] LR: {scheduler.get_last_lr()[0]:.6f}")
 
-        # Save checkpoint
         checkpoint_path = checkpoint_dir / f"{args.model}_epoch_{epoch+1}.pth"
 
         torch.save({
@@ -220,10 +201,6 @@ def train_detector(args):
         }, checkpoint_path)
 
         print(f"[INFO] Saved checkpoint: {checkpoint_path}")
-
-    # -------------------------------------------------
-    # Save final model
-    # -------------------------------------------------
 
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 
@@ -245,22 +222,7 @@ def parse_args():
     parser.add_argument(
         "--model",
         choices=["fasterrcnn", "swin"],
-        required=True,
-        help="Model type"
-    )
-
-    parser.add_argument(
-        "--images",
-        type=Path,
-        required=True,
-        help="Image directory"
-    )
-
-    parser.add_argument(
-        "--labels",
-        type=Path,
-        required=True,
-        help="Annotation JSON"
+        required=True
     )
 
     parser.add_argument(
@@ -278,7 +240,7 @@ def parse_args():
     parser.add_argument(
         "--subset",
         type=float,
-        default=0.02,
+        default=1,
         help="Dataset fraction"
     )
 
@@ -286,13 +248,6 @@ def parse_args():
         "--output",
         type=str,
         default="outputs/models/model.pth"
-    )
-
-    parser.add_argument(
-        "--resume",
-        type=str,
-        default=None,
-        help="Path to checkpoint to resume training"
     )
 
     return parser.parse_args()

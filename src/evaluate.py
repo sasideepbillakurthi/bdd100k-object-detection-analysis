@@ -2,8 +2,8 @@
 Evaluation script for object detection on BDD100K.
 
 Supports evaluation for:
-1. Faster R-CNN
-2. YOLOv8
+1. Faster R-CNN (ResNet50 + FPN)
+2. Swin Transformer + Faster R-CNN
 
 Produces:
 - quantitative metrics
@@ -13,7 +13,6 @@ Produces:
 """
 
 import argparse
-import json
 from pathlib import Path
 from typing import Dict
 
@@ -22,33 +21,41 @@ import torch
 import pandas as pd
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
-from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from torchvision.ops import box_iou
-from ultralytics import YOLO
 
-from src.config import DETECTION_CLASSES, SAMPLES_DIR, TABLES_DIR
+from src.config import DETECTION_CLASSES, SAMPLES_DIR, TABLES_DIR, IMAGE_DIR_VAL, LABEL_FILE_VAL
 from src.dataset import BDDDetectionDataset
 from src.parser import load_annotations
 from src.train import BDDTorchDataset, collate_fn, IDX_TO_CLASS
 
+from src.models.swin_faster_rcnn import build_model as build_swin_fasterrcnn
+from src.models.faster_rcnn import build_model as build_resnet_fasterrcnn
+
 
 # ---------------------------------------------------------
-# FasterRCNN evaluation
+# IoU Utility
 # ---------------------------------------------------------
 
 def compute_iou_matrix(preds: torch.Tensor, targets: torch.Tensor):
+
     if preds.numel() == 0 or targets.numel() == 0:
         return torch.zeros((preds.shape[0], targets.shape[0]))
+
     return box_iou(preds, targets)
 
 
-def evaluate_fasterrcnn(model, dataloader, device, iou_threshold=0.5):
+# ---------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------
+
+def evaluate_detector(model, dataloader, device, iou_threshold=0.5):
 
     model.eval()
 
     stats = {cls: {"tp": 0, "fp": 0, "fn": 0} for cls in DETECTION_CLASSES}
 
     with torch.no_grad():
+
         for images, targets in dataloader:
 
             images = [img.to(device) for img in images]
@@ -88,7 +95,9 @@ def evaluate_fasterrcnn(model, dataloader, device, iou_threshold=0.5):
                         stats[cls]["fp"] += 1
 
                 for j, gt_label in enumerate(gt_labels):
+
                     if j not in matched_gt:
+
                         cls = IDX_TO_CLASS[gt_label.item()]
                         stats[cls]["fn"] += 1
 
@@ -96,27 +105,7 @@ def evaluate_fasterrcnn(model, dataloader, device, iou_threshold=0.5):
 
 
 # ---------------------------------------------------------
-# YOLO evaluation
-# ---------------------------------------------------------
-
-def evaluate_yolo(model_path, data_yaml):
-
-    model = YOLO(model_path)
-
-    metrics = model.val(data=data_yaml)
-
-    results = {
-        "mAP50": float(metrics.box.map50),
-        "mAP50_95": float(metrics.box.map),
-        "precision": float(metrics.box.mp),
-        "recall": float(metrics.box.mr),
-    }
-
-    return results
-
-
-# ---------------------------------------------------------
-# Metrics processing
+# Metrics
 # ---------------------------------------------------------
 
 def compute_precision_recall(stats: Dict):
@@ -164,6 +153,7 @@ def plot_metrics(rows):
     plt.bar(x, recall, width=0.4, label="Recall", alpha=0.7)
 
     plt.xticks(x, classes, rotation=45)
+
     plt.ylabel("Score")
     plt.title("Per-class Precision / Recall")
 
@@ -177,7 +167,7 @@ def plot_metrics(rows):
 
 
 # ---------------------------------------------------------
-# Qualitative samples
+# Failure Case Visualization
 # ---------------------------------------------------------
 
 def save_failure_cases(dataset, model, device, max_samples=10):
@@ -200,7 +190,7 @@ def save_failure_cases(dataset, model, device, max_samples=10):
 
             if len(output["boxes"]) == 0 and len(anns) > 0:
 
-                out_path = SAMPLES_DIR / f"missed_{image_id}"
+                out_path = SAMPLES_DIR / f"missed_{image_id}.jpg"
 
                 cv2.imwrite(str(out_path), image)
 
@@ -218,13 +208,13 @@ def parse_args():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--model", choices=["fasterrcnn", "yolov8"], required=True)
+    parser.add_argument(
+        "--model",
+        choices=["fasterrcnn", "swin"],
+        required=True
+    )
 
-    parser.add_argument("--labels", type=Path)
-    parser.add_argument("--images", type=Path)
-    parser.add_argument("--weights", type=Path)
-
-    parser.add_argument("--data-yaml", type=str)
+    parser.add_argument("--weights", type=Path, required=True)
 
     return parser.parse_args()
 
@@ -237,58 +227,48 @@ def main():
 
     args = parse_args()
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    annotations = load_annotations(LABEL_FILE_VAL)
+
+    dataset = BDDDetectionDataset(IMAGE_DIR_VAL, annotations)
+
+    torch_dataset = BDDTorchDataset(dataset)
+
+    dataloader = DataLoader(
+        torch_dataset,
+        batch_size=1,
+        shuffle=False,
+        collate_fn=collate_fn,
+    )
+
     if args.model == "fasterrcnn":
+        model = build_resnet_fasterrcnn(pretrained=False)
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    elif args.model == "swin":
+        model = build_swin_fasterrcnn()
 
-        annotations = load_annotations(args.labels)
+    model.load_state_dict(
+        torch.load(args.weights, map_location=device)
+    )
 
-        dataset = BDDDetectionDataset(args.images, annotations)
+    model.to(device)
 
-        torch_dataset = BDDTorchDataset(dataset)
+    stats = evaluate_detector(model, dataloader, device)
 
-        dataloader = DataLoader(
-            torch_dataset,
-            batch_size=1,
-            shuffle=False,
-            collate_fn=collate_fn,
-        )
+    rows = compute_precision_recall(stats)
 
-        model = fasterrcnn_resnet50_fpn(pretrained=False)
+    TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
-        model.load_state_dict(torch.load(args.weights, map_location=device))
+    output_csv = TABLES_DIR / "evaluation_metrics.csv"
 
-        model.to(device)
+    pd.DataFrame(rows).to_csv(output_csv, index=False)
 
-        stats = evaluate_fasterrcnn(model, dataloader, device)
+    plot_metrics(rows)
 
-        rows = compute_precision_recall(stats)
+    save_failure_cases(dataset, model, device)
 
-        TABLES_DIR.mkdir(parents=True, exist_ok=True)
-
-        output_csv = TABLES_DIR / "evaluation_metrics.csv"
-
-        pd.DataFrame(rows).to_csv(output_csv, index=False)
-
-        plot_metrics(rows)
-
-        save_failure_cases(dataset, model, device)
-
-        print(f"[INFO] Metrics saved to {output_csv}")
-
-    elif args.model == "yolov8":
-
-        results = evaluate_yolo(args.weights, args.data_yaml)
-
-        TABLES_DIR.mkdir(parents=True, exist_ok=True)
-
-        metrics_file = TABLES_DIR / "yolo_metrics.json"
-
-        with open(metrics_file, "w") as f:
-            json.dump(results, f, indent=4)
-
-        print("[INFO] YOLO evaluation complete")
-        print(results)
+    print(f"[INFO] Metrics saved to {output_csv}")
 
 
 if __name__ == "__main__":

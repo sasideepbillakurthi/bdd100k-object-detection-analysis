@@ -8,9 +8,9 @@ to match the BDD100K detection classes.
 
 import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from src.config import DETECTION_CLASSES
 
-
-def get_faster_rcnn_model(num_classes: int):
+def get_faster_rcnn_model(num_classes: int, pretrained: bool = True):
     """
     Create a Faster R-CNN model with a ResNet50-FPN backbone.
 
@@ -27,7 +27,7 @@ def get_faster_rcnn_model(num_classes: int):
 
     # Load pretrained Faster R-CNN model
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(
-        pretrained=True
+        pretrained=pretrained
     )
 
     # Get number of input features for classifier
@@ -42,7 +42,7 @@ def get_faster_rcnn_model(num_classes: int):
     return model
 
 
-def build_model(num_detection_classes: int):
+def build_model(pretrained: bool = True):
     """
     Build Faster R-CNN model for BDD100K.
 
@@ -58,8 +58,11 @@ def build_model(num_detection_classes: int):
     """
 
     # Add background class
-    num_classes = num_detection_classes + 1
+    num_classes = len(DETECTION_CLASSES) + 1
 
-    model = get_faster_rcnn_model(num_classes)
+    model = get_faster_rcnn_model(
+        num_classes=num_classes,
+        pretrained=pretrained
+    )
 
     return model
