@@ -1,20 +1,3 @@
-"""
-Training script for BDD100K object detection.
-
-Supports two models:
-1. Faster R-CNN (ResNet50 + FPN)
-2. Swin Transformer + Faster R-CNN
-
-Example
--------
-
-Train ResNet FasterRCNN
-python -m src.train --model fasterrcnn --images data/images --labels labels.json
-
-Train Swin FasterRCNN
-python -m src.train --model swin --images data/images --labels labels.json
-"""
-
 import argparse
 import random
 from pathlib import Path
@@ -44,10 +27,6 @@ IDX_TO_CLASS = {v: k for k, v in CLASS_TO_IDX.items()}
 # ---------------------------------------------------------
 
 class BDDTorchDataset(torch.utils.data.Dataset):
-    """
-    PyTorch dataset wrapper converting BDD dataset
-    into tensors for FasterRCNN.
-    """
 
     def __init__(self, dataset, subset_ratio=1.0):
 
@@ -78,9 +57,16 @@ class BDDTorchDataset(torch.utils.data.Dataset):
             boxes.append([bbox.x1, bbox.y1, bbox.x2, bbox.y2])
             labels.append(CLASS_TO_IDX[ann.category])
 
+        if len(boxes) == 0:
+            boxes = torch.zeros((0, 4), dtype=torch.float32)
+            labels = torch.zeros((0,), dtype=torch.int64)
+        else:
+            boxes = torch.tensor(boxes, dtype=torch.float32)
+            labels = torch.tensor(labels, dtype=torch.int64)
+
         target = {
-            "boxes": torch.tensor(boxes, dtype=torch.float32),
-            "labels": torch.tensor(labels, dtype=torch.int64),
+            "boxes": boxes,
+            "labels": labels,
         }
 
         return image, target
@@ -98,6 +84,8 @@ def train_one_epoch(model, dataloader, optimizer, device):
 
     model.train()
 
+    total_loss = 0
+
     for images, targets in dataloader:
 
         images = [img.to(device) for img in images]
@@ -111,11 +99,15 @@ def train_one_epoch(model, dataloader, optimizer, device):
 
         losses = sum(loss for loss in loss_dict.values())
 
+        total_loss += losses.item()
+
         optimizer.zero_grad()
         losses.backward()
         optimizer.step()
 
-    print("[INFO] Epoch completed")
+    avg_loss = total_loss / len(dataloader)
+
+    print(f"[INFO] Avg Loss: {avg_loss:.4f}")
 
 
 # ---------------------------------------------------------
@@ -167,11 +159,42 @@ def train_detector(args):
         weight_decay=0.0005,
     )
 
+    scheduler = torch.optim.lr_scheduler.StepLR(
+        optimizer,
+        step_size=3,
+        gamma=0.1
+    )
+
+    # -------------------------------------------------
+    # Resume training if checkpoint exists
+    # -------------------------------------------------
+
+    start_epoch = 0
+
+    if args.resume is not None:
+
+        checkpoint = torch.load(args.resume, map_location=device)
+
+        model.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+
+        start_epoch = checkpoint["epoch"]
+
+        print(f"[INFO] Resuming from epoch {start_epoch}")
+
+    # -------------------------------------------------
+    # Checkpoint directory
+    # -------------------------------------------------
+
+    checkpoint_dir = Path("outputs/checkpoints")
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
     # -------------------------------------------------
     # Training
     # -------------------------------------------------
 
-    for epoch in range(args.epochs):
+    for epoch in range(start_epoch, args.epochs):
 
         print(f"[INFO] Epoch {epoch+1}/{args.epochs}")
 
@@ -181,6 +204,26 @@ def train_detector(args):
             optimizer,
             device
         )
+
+        scheduler.step()
+
+        print(f"[INFO] LR: {scheduler.get_last_lr()[0]:.6f}")
+
+        # Save checkpoint
+        checkpoint_path = checkpoint_dir / f"{args.model}_epoch_{epoch+1}.pth"
+
+        torch.save({
+            "epoch": epoch + 1,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
+        }, checkpoint_path)
+
+        print(f"[INFO] Saved checkpoint: {checkpoint_path}")
+
+    # -------------------------------------------------
+    # Save final model
+    # -------------------------------------------------
 
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 
@@ -223,7 +266,7 @@ def parse_args():
     parser.add_argument(
         "--epochs",
         type=int,
-        default=1
+        default=12
     )
 
     parser.add_argument(
@@ -243,6 +286,13 @@ def parse_args():
         "--output",
         type=str,
         default="outputs/models/model.pth"
+    )
+
+    parser.add_argument(
+        "--resume",
+        type=str,
+        default=None,
+        help="Path to checkpoint to resume training"
     )
 
     return parser.parse_args()
