@@ -11,7 +11,7 @@ from pathlib import Path
 DATA_DIR = Path("data")
 
 IMAGE_DIR_TRAIN = DATA_DIR / "images" / "train"
-IMAGE_DIR_VAL = DATA_DIR / "images" / "val"
+IMAGE_DIR_VAL = DATA_DIR / "images" / "100k" / "val"
 
 LABEL_FILE_TRAIN = DATA_DIR / "labels" / "bdd100k_labels_images_train.json"
 LABEL_FILE_VAL = DATA_DIR / "labels" / "bdd100k_labels_images_val.json"
