@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import cv2
+import random
 
 from src.config import (
     DETECTION_CLASSES,
@@ -96,7 +98,6 @@ def plot_class_distribution(counts: Dict[str, int], split: str) -> None:
 # ---------------------------------------------------------
 # Bounding Box Statistics
 # ---------------------------------------------------------
-
 def compute_bbox_statistics(
     annotations: Dict[str, List[Annotation]],
 ) -> pd.DataFrame:
@@ -104,7 +105,7 @@ def compute_bbox_statistics(
 
     records = []
 
-    for anns in annotations.values():
+    for image_id, anns in annotations.items():
         for ann in anns:
 
             bbox = ann.bbox
@@ -115,6 +116,7 @@ def compute_bbox_statistics(
 
             records.append(
                 {
+                    "image_id": image_id,
                     "category": ann.category,
                     "width": bbox.width,
                     "height": bbox.height,
@@ -237,6 +239,49 @@ def compute_bbox_centers(
             )
 
     return pd.DataFrame(records)
+
+
+
+
+def visualize_anomaly_example(
+    image_id: str,
+    annotations: Dict[str, List[Annotation]],
+    image_dir: Path,
+    title: str,
+    output_path: Path
+):
+    """
+    Draw bounding boxes for one example image containing anomalies.
+    """
+
+    img_path = image_dir / image_id
+
+    if not img_path.exists():
+        print(f"[WARNING] Image not found: {img_path}")
+        return
+
+    image = cv2.imread(str(img_path))
+
+    anns = annotations[image_id]
+
+    for ann in anns:
+
+        x1 = int(ann.bbox.x1)
+        y1 = int(ann.bbox.y1)
+        x2 = int(ann.bbox.x1 + ann.bbox.width)
+        y2 = int(ann.bbox.y1 + ann.bbox.height)
+
+        cv2.rectangle(image, (x1, y1), (x2, y2), (0,255,0), 2)
+
+    plt.figure(figsize=(8,6))
+    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    plt.title(title)
+    plt.axis("off")
+
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+
 
 
 def plot_spatial_heatmap(
@@ -658,6 +703,13 @@ def run_analysis(label_file: Path, image_dir: Path, split: str):
         index=False
     )
 
+    anomalies.to_csv(
+    TABLES_DIR / f"extreme_aspect_ratio_boxes_{split}.csv",
+    index=False
+    )
+
+
+
     # -------------------------
     # Small Objects
     # -------------------------
@@ -678,6 +730,11 @@ def run_analysis(label_file: Path, image_dir: Path, split: str):
         index=False
     )
 
+    small_objects_df.to_csv(
+    TABLES_DIR / f"small_bounding_boxes_{split}.csv",
+    index=False
+    )
+
     # -------------------------
     # Object Density
     # -------------------------
@@ -689,8 +746,58 @@ def run_analysis(label_file: Path, image_dir: Path, split: str):
     density_stats.to_csv(
         TABLES_DIR / f"object_density_summary_{split}.csv"
     )
-    plot_object_density(density_df, split)
 
+    crowded_scenes = density_df[density_df["num_objects"] > 30]
+
+    crowded_scenes.to_csv(
+        TABLES_DIR / f"crowded_scenes_{split}.csv",
+        index=False
+    )
+    
+    # ---------------------------------------------------------
+    # Visualize example anomalies
+    # ---------------------------------------------------------
+
+    if len(anomalies) > 0:
+
+        example = anomalies.sample(1).iloc[0]
+
+        visualize_anomaly_example(
+            example["image_id"],
+            annotations,
+            image_dir,
+            "Extreme Aspect Ratio Example",
+            FIGURES_DIR / f"example_extreme_aspect_ratio_{split}.png"
+        )
+
+
+    if len(small_objects_df) > 0:
+
+        example = small_objects_df.sample(1).iloc[0]
+
+        visualize_anomaly_example(
+            example["image_id"],
+            annotations,
+            image_dir,
+            "Small Object Example",
+            FIGURES_DIR / f"example_small_object_{split}.png"
+        )
+
+
+    if len(crowded_scenes) > 0:
+
+        example = crowded_scenes.sample(1).iloc[0]
+
+        visualize_anomaly_example(
+            example["image_id"],
+            annotations,
+            image_dir,
+            "Crowded Scene Example",
+            FIGURES_DIR / f"example_crowded_scene_{split}.png"
+        )
+
+
+    plot_object_density(density_df, split)
     # Spatial distribution
     centers_df = compute_bbox_centers(annotations)
     plot_spatial_heatmap(centers_df, FIGURES_DIR, split)
@@ -743,7 +850,7 @@ if __name__ == "__main__":
         image_dir=IMAGE_DIR_TRAIN,
         split="train",
     )
-
+    
     val_counts=run_analysis(
         label_file=LABEL_FILE_VAL,
         image_dir=IMAGE_DIR_VAL,
