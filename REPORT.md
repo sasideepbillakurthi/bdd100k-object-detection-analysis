@@ -368,6 +368,10 @@ Bounding boxes with extremely large or small aspect ratios were observed in the 
 
 Such extreme shapes may make it difficult for anchor-based detectors to match suitable anchor boxes.
 
+
+**Figure 6: An example image illustrating extreme aspect ratio bounding boxes.**
+![Extreme_aspect](outputs/figures/example_extreme_aspect_ratio_train.png)
+
 #### Extremely Small Bounding Boxes
 
 Some bounding boxes have very small dimensions, with areas approaching **1 pixel²**.
@@ -379,6 +383,11 @@ These cases typically correspond to:
 - small infrastructure elements such as traffic lights or signs.
 
 Small objects contain limited visual information and are therefore harder for detection models to recognize.
+
+
+**Figure 7: An example image illustrating Small objects.**
+![Small_Object](outputs/figures/example_small_object_train.png)
+
 
 #### Crowded Scenes
 
@@ -392,6 +401,9 @@ These crowded scenes introduce challenges such as:
 
 Such cases can increase the difficulty of object detection and may lead to missed detections.
 
+
+**Figure 8: An example image illustrating Small objects.**
+![Crowded_Scene](outputs/figures/example_crowded_scene_train.png)
 #### Impact on Model Training
 
 These anomalies highlight potential challenges for object detection models:
@@ -402,59 +414,7 @@ These anomalies highlight potential challenges for object detection models:
 
 Understanding these cases helps ensure that the dataset is properly interpreted before training detection models.
 
-### 3.3 Bounding Box Statistics
 
-Bounding box statistics were analyzed in terms of width, height, and area.
-
-Notable patterns:
-- Traffic lights and traffic signs typically have small bounding box areas.
-- Vehicles such as cars, buses, and trucks occupy larger bounding box regions.
-- Aspect ratios vary significantly across classes.
-
-The prevalence of small objects (especially traffic signs and lights) indicates
-that small-object detection is a key challenge in this dataset.
-
----
-
-### 3.4 Image-Level Statistics
-
-The number of objects per image varies widely:
-- Many images contain only a few objects.
-- Urban scenes can contain a large number of annotated objects.
-
-Crowded scenes introduce challenges related to occlusion and overlapping
-objects, which can negatively affect detection performance.
-
----
-
-### 3.5 Anomalies and Edge Cases
-
-Several anomalies and challenging cases were identified:
-- Extremely small bounding boxes (less than 10 pixels in width or height).
-- Images with a very high object count.
-- Rare classes appearing in limited visual contexts.
-
-These cases were flagged and visualized to better understand their impact on
-model performance.
-
----
-
-## 4. Qualitative Data Analysis
-
-Qualitative visualization was used to inspect:
-- Smallest and largest object instances per class
-- Highly crowded scenes
-- Rare-class examples
-
-These visualizations confirmed that:
-- Small objects are often visually ambiguous.
-- Rare classes are frequently underrepresented and context-specific.
-- Crowded scenes introduce significant occlusion.
-
-This qualitative analysis complements the quantitative statistics and helps
-interpret model failures.
-
----
 
 ## 5. Model Selection and Training
 
