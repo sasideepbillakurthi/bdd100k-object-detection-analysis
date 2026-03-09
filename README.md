@@ -178,12 +178,12 @@ additional installations.
 docker build -t bdd100k-analysis .
 
 ### Run Container (mount dataset)
-
+```text
 docker run -it --rm \
 --gpus all \
 -v "$(pwd)/data:/workspace/bdd100k-object-detection-analysis/data" \
 bdd100k-analysis
-
+```
 ---
 
 
