@@ -9,7 +9,7 @@ from src.parser import load_annotations
 from src.dataset import BDDDetectionDataset
 from src.config import IMAGE_DIR_VAL, LABEL_FILE_VAL, DETECTION_CLASSES
 from src.models.swin_faster_rcnn import build_model
-
+import argparse
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -37,13 +37,20 @@ def draw_boxes(image, boxes, labels, color, prefix):
     return image
 
 
-def qualitative_evaluation(num_samples=20):
+def qualitative_evaluation(weights_path, num_samples=20):
 
     annotations = load_annotations(LABEL_FILE_VAL)
 
     dataset = BDDDetectionDataset(IMAGE_DIR_VAL, annotations)
 
     model = build_model()
+
+    checkpoint = torch.load(weights_path, map_location=DEVICE)
+
+    if "model_state_dict" in checkpoint:
+        model.load_state_dict(checkpoint["model_state_dict"])
+    else:
+        model.load_state_dict(checkpoint)
 
     model.to(DEVICE)
     model.eval()
@@ -96,6 +103,34 @@ def qualitative_evaluation(num_samples=20):
             print(f"Saved {save_path}")
 
 
-if __name__ == "__main__":
 
-    qualitative_evaluation(num_samples=10)
+
+def parse_args():
+
+    parser = argparse.ArgumentParser(
+        description="Qualitative evaluation for object detection"
+    )
+
+    parser.add_argument(
+        "--weights",
+        type=str,
+        required=True,
+        help="Path to trained model weights (.pth)"
+    )
+
+    parser.add_argument(
+        "--num-samples",
+        type=int,
+        default=20,
+        help="Number of images to visualize"
+    )
+
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    qualitative_evaluation(
+        weights_path=args.weights,
+        num_samples=args.num_samples
+    )
