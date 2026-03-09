@@ -44,18 +44,22 @@ Docker.
 ```text
 bdd100k-object-detection-analysis/
 ├── src/
+│   │
+│   ├── models/
+│   │   ├── faster_rcnn.py
+│   │   ├── swin_faster_rcnn.py
 │   ├── config.py        # Global configuration
 │   ├── parser.py        # BDD100K JSON parser
 │   ├── dataset.py       # Dataset abstractions
 │   ├── analysis.py      # Data analysis pipeline
-│   ├── visualize.py    # Qualitative visualization
-│   ├── dashboard.py    # Streamlit dashboard
 │   ├── train.py        # Model training (subset supported)
 │   └── evaluate.py     # Model evaluation
+│   └── qualitative_eval.py     # Qualitative evaluation
+|
 ├── outputs/
 │   ├── figures/         # Generated plots
 │   ├── tables/          # CSV statistics
-│   └── samples/         # Qualitative samples
+│   └── qualitative/         # Qualitative samples
 ├── Dockerfile
 ├── requirements.txt
 ├── README.md
