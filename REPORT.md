@@ -565,92 +565,238 @@ This architecture is well suited for the characteristics observed in the BDD100K
 
 ---
 
-## 6. Evaluation Metrics
+## 5. Model Evaluation
 
-### 6.1 Quantitative Metrics
+The trained detector was evaluated on the **BDD100K validation dataset** to measure its object detection performance. Due to limited GPU availability, the model was trained for **one epoch using approximately 50% of the training subset**. Therefore, the purpose of this evaluation is primarily to demonstrate the **complete training and evaluation pipeline**, rather than achieving fully optimized detection performance.
 
-The following metrics were computed on the validation dataset:
-- True Positives (TP)
-- False Positives (FP)
-- False Negatives (FN)
-- Precision
-- Recall
-
-An IoU threshold of 0.5 was used to determine correct detections.
-
-Precision and recall were chosen because:
-- They provide insight into class-wise performance
-- They highlight the impact of class imbalance
-- They expose failure modes such as missed detections
+Despite the limited training schedule, the evaluation provides useful insights into the model's behavior and highlights how dataset characteristics influence detection performance.
 
 ---
 
-### 6.2 Quantitative Results Analysis
+### 5.1 Experimental Setup
 
-The evaluation results indicate:
-- Higher precision and recall for frequent classes such as `car`.
-- Lower recall for rare and small-object classes such as `traffic sign`,
-  `traffic light`, and `train`.
+The evaluation was conducted using the following setup:
 
-These results align with the observations from the data analysis stage.
+| Component | Configuration |
+|--------|--------|
+| Model | Faster R-CNN with Swin Transformer Backbone |
+| Backbone | Swin-Tiny (`swin_tiny_patch4_window7_224`) |
+| Feature Pyramid | FPN |
+| Training Epochs | 1 |
+| Training Data | 50% subset of BDD100K training split |
+| Optimizer | SGD |
+| Batch Size | 2 |
+| Validation Dataset | BDD100K validation split |
 
----
-
-## 7. Qualitative Evaluation and Failure Analysis
-
-Qualitative evaluation focused on inspecting failure cases, particularly:
-- Images where ground-truth objects were missed entirely
-- Scenes with small or heavily occluded objects
-- Crowded urban environments
-
-Observed failure patterns:
-- Small objects are frequently missed.
-- Rare classes suffer from low recall.
-- Crowded scenes increase false negatives.
-
-These failure modes are consistent with the dataset characteristics identified
-during data analysis.
+Since only a short training run was performed, the results should be interpreted as a **baseline evaluation** rather than final optimized performance.
 
 ---
 
-## 8. Connecting Data Analysis to Model Performance
+### 5.2 Quantitative Performance
 
-The evaluation results strongly correlate with the data analysis findings:
-- Class imbalance leads to uneven performance across categories.
-- Small bounding boxes result in lower detection recall.
-- Rare classes are insufficiently represented for robust learning.
+The model was evaluated using standard object detection metrics.
 
-This highlights the importance of thorough dataset analysis prior to model
-development.
+| Metric | Value |
+|------|------|
+| **mAP@0.5** | **0.4099** |
+| **Mean IoU (mIoU)** | **0.7271** |
 
----
+### Mean Average Precision (mAP@0.5)
 
-## 9. Suggested Improvements
+Mean Average Precision at IoU threshold 0.5 measures the model's ability to correctly detect objects while balancing precision and recall across classes.
 
-Based on the analysis and evaluation, potential improvements include:
-- Class-aware sampling or reweighting strategies
-- Data augmentation targeted at small objects
-- Higher-resolution input images
-- Collecting additional data for rare classes
-- Using loss functions designed for class imbalance (e.g., focal loss)
+The model achieved:
 
-These improvements could help mitigate the identified weaknesses.
+**mAP@0.5 = 0.4099**
+
+Given that the model was trained for only **one epoch on a subset of the dataset**, this result demonstrates that the training pipeline successfully learns meaningful object representations.
+
+Longer training schedules and full dataset training would likely improve this score significantly.
 
 ---
 
-## 10. Conclusion
+### Mean Intersection over Union (mIoU)
 
-This project demonstrates a complete and reproducible object detection pipeline
-for the BDD100K dataset, covering:
-- Structured data analysis
-- Identification of dataset challenges
-- Baseline model training
-- Quantitative and qualitative evaluation
-- Data-driven performance interpretation
+Mean IoU measures the spatial overlap between predicted bounding boxes and ground truth boxes.
 
-The results emphasize that dataset characteristics such as class imbalance,
-small objects, and crowded scenes play a critical role in determining object
-detection performance.
+The model achieved:
 
-This analysis provides a strong foundation for future model improvements and
-more advanced experimentation.
+**mIoU = 0.7271**
+
+This relatively high value indicates that when the model detects objects, the predicted bounding boxes generally align well with the ground truth.
+
+This suggests that the model already learns **reasonable localization behavior**, even with limited training.
+
+---
+
+### 5.3 Confusion Matrix Analysis
+
+![Confusion Matrix](outputs/tables/confusion_matrix.png)
+
+The confusion matrix illustrates how predicted classes compare to ground-truth labels.
+
+### Observations
+
+- **Car detection performs strongly**, reflecting the large number of car instances in the dataset.
+- **Truck and bus are occasionally classified as cars**, due to visual similarity between vehicle classes.
+- **Traffic lights and traffic signs show some confusion**, as they appear as small objects with similar visual features.
+- **Rider and person classes overlap**, since riders include a person riding a bicycle or motorcycle.
+
+This visualization helps identify which categories are most frequently confused by the detector.
+
+---
+
+### 5.4 Per-Class Precision and Recall
+
+![Precision Recall](outputs/tables/precision_recall.png)
+
+This visualization compares precision and recall for each object category.
+
+### Observations
+
+**High-performing classes**
+
+- Car
+- Traffic sign
+- Traffic light
+
+These classes have strong visual patterns and relatively higher instance counts.
+
+**Moderate-performing classes**
+
+- Truck
+- Bus
+- Person
+
+These classes sometimes suffer from missed detections or misclassification.
+
+**Lower-performing classes**
+
+- Rider
+- Motor
+
+These categories are visually complex and appear less frequently in the dataset.
+
+---
+
+### 5.5 Precision–Recall Curves
+
+![PR Curves](outputs/tables/precision_recall_curve.png)
+
+Precision–recall curves provide insight into detection behavior across confidence thresholds.
+
+### Observations
+
+- **Car maintains high precision across a wide recall range**, indicating stable detection performance.
+- **Vehicle subclasses such as bus and truck show decreasing precision at higher recall**, indicating an increase in false positives.
+- **Motor and rider classes show unstable curves**, reflecting limited training data and visual complexity.
+
+---
+
+### 5.6 Qualitative Evaluation
+
+In addition to quantitative metrics, qualitative analysis was conducted to visually inspect the model’s predictions on validation images. This helps identify common failure cases that may not be fully captured by numerical metrics.
+
+For visualization, predicted bounding boxes and ground-truth annotations were overlaid on the original images:
+They are saved in [View qualitative results](outputs/qualitative)
+- **Green boxes** represent **ground-truth annotations**
+- **Red boxes** represent **model predictions**
+  ![im1](outputs/qualitative/b4d18d1a-030f0601.jpg.jpg)
+  ![im2](outputs/qualitative/b64e7cbc-d7dba7f9.jpg.jpg) 
+
+---
+
+### 5.7 Failure Pattern Analysis
+
+Several recurring failure patterns were observed during evaluation.
+
+#### Small Object Detection
+
+The model struggles to detect very small objects such as:
+
+- traffic lights
+- traffic signs
+
+This behavior aligns with the dataset analysis, which showed that a large portion of bounding boxes belong to the **small-object category**.
+
+---
+
+#### Crowded Scenes
+
+Scenes with many objects sometimes lead to:
+
+- missed detections
+- overlapping bounding boxes
+- occluded objects not being detected.
+
+This reflects the **high scene density** observed in the dataset analysis.
+
+---
+
+#### Class Similarity
+
+Certain object classes share similar visual features, leading to classification confusion.
+
+Examples include:
+
+- truck vs car
+- bus vs truck
+- traffic sign vs traffic light
+- rider vs person
+
+These patterns are visible in the confusion matrix.
+
+---
+
+### 5.8 Connection to Dataset Analysis
+
+The evaluation results closely reflect the characteristics identified during the dataset analysis stage.
+
+Key dataset observations included:
+
+- strong **class imbalance**
+- large number of **small objects**
+- **dense scenes with many objects**
+- wide variation in **bounding box sizes**
+
+These factors directly influence model behavior.
+
+For example:
+
+- the dominance of **car instances** explains strong car detection performance
+- **small object prevalence** contributes to lower detection accuracy for traffic lights
+- **crowded scenes** increase occlusion-related errors.
+
+---
+
+### 5.9 Potential Improvements
+
+Based on the evaluation results, several improvements could enhance model performance.
+
+#### Longer Training
+
+The model was trained for only **one epoch**, so additional training epochs would likely improve detection accuracy significantly.
+
+#### Improved Small Object Detection
+
+Possible improvements include:
+
+- higher input resolution
+- additional pyramid levels in FPN
+- multi-scale training strategies.
+
+#### Address Class Imbalance
+
+Class imbalance could be mitigated using:
+
+- focal loss
+- class-balanced sampling
+- targeted data augmentation.
+
+---
+
+## 5.10 Summary
+
+The evaluation demonstrates that the implemented detection pipeline successfully trains and evaluates a **Swin Transformer + Faster R-CNN detector** on the BDD100K dataset.
+
+Despite limited training time and computational resources, the model already learns meaningful object representations and produces reasonable localization results. The combination of quantitative metrics, visualization, and qualitative analysis provides valuable insights into model strengths and limitations, guiding future improvements in both model architecture and training strategy.
