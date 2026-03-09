@@ -66,89 +66,105 @@ bdd100k-object-detection-analysis/
 └── REPORT.md
 ```
 
-## Data Analysis
 
-The data analysis stage includes:
-- Class distribution analysis
-- Train vs validation split analysis
-- Bounding box statistics (width, height, area)
-- Detection of anomalous samples (e.g., very small objects)
-- Identification of interesting or unique samples
-- Visualization of dataset statistics
+## Dataset Analysis
+
+The dataset was analyzed to understand important characteristics that influence detection performance.
+
+Key analyses performed:
+
+- **Class distribution**
+- **Bounding box size distribution**
+- **Aspect ratio distribution**
+- **Scene complexity (objects per image)**
+- **Small object prevalence**
+- **Spatial object distribution**
+
+Generated analysis outputs are stored in:
+
 
 All analysis outputs are saved under the outputs/ directory.
 
 ### Run Data Analysis
 ```text
-python src/analysis.py \
-  --labels data/labels/bdd100k_labels_images_train.json \
-  --images data/images/train \
-  --split train
+python -m src.analysis
 ```
-Repeat the command for validation by changing the paths and using
---split val.
+---
+
+## Model Architecture
+
+The detection model used in this project is:
+
+**Faster R-CNN with a Swin Transformer backbone and Feature Pyramid Network (FPN)**.
+
+Architecture components:
+
+1. **Swin Transformer Backbone**
+2. **Feature Pyramid Network (FPN)**
+3. **Region Proposal Network (RPN)**
+4. **ROI-based Detection Head**
+
+This architecture was selected because the dataset analysis revealed:
+
+- many **small objects**
+- significant **scale variation**
+- **crowded urban scenes**
+
+FPN improves small-object detection, while the Swin Transformer backbone captures richer contextual features.
 
 ---
 
-## Dashboard
+## Training
 
-An interactive Streamlit dashboard is provided to visualize the
-analysis results.
+The training pipeline supports both:
 
-Run the dashboard using:
+- **Faster R-CNN (ResNet backbone)**
+- **Swin Transformer + Faster R-CNN**
 
-streamlit run src/dashboard.py
-
----
-
-## Model Training
-
-A Faster R-CNN (ResNet-50 + FPN) model from torchvision is used as
-a baseline object detector.
-
-### Why Faster R-CNN
-- Strong and well-understood two-stage detector
-- Performs well on complex driving scenes
-- Suitable as a baseline for small and rare objects
-
-### Training Features
-- Custom PyTorch Dataset for BDD100K
-- Support for subset training
-- Training for a small number of epochs
-
-### Run Training (Example)
+Example training command:
 ```text
-python src/train.py \
-  --labels data/labels/bdd100k_labels_images_train.json \
-  --images data/images/train \
-  --epochs 1 \
-  --subset 0.02
+python -m src.train --model swin --epochs 1 --subset 0.5
 ```
-The trained model is saved to outputs/model.pth.
+
 
 ---
 
-## Evaluation and Visualization
+## Evaluation
 
-### Quantitative Evaluation
-- Per-class True Positives (TP)
-- False Positives (FP)
-- False Negatives (FN)
-- Precision and Recall (IoU ≥ 0.5)
+Model performance was evaluated on the **BDD100K validation dataset**.
 
-Metrics are saved to:
-outputs/tables/evaluation_metrics.csv
+### Quantitative Metrics
 
-### Qualitative Evaluation
-- Visualization of failure cases
-- Identification of missed detections
+The following metrics were used:
+
+| Metric | Value |
+|------|------|
+| mAP@0.5 | 0.4099 |
+| mIoU | 0.7271 |
+
+Additional evaluation includes:
+
+- per-class precision
+- per-class recall
+- confusion matrix
+- precision–recall curves
+
+---
+
+### Qualitative Analysis
+
+Model predictions were visualized by overlaying predicted bounding boxes with ground-truth annotations.
+
+Visualization conventions:
+
+- **Green boxes → Ground Truth**
+- **Red boxes → Model Predictions**
+
+
 
 ### Run Evaluation
 ```text
-python src/evaluate.py \
-  --labels data/labels/bdd100k_labels_images_val.json \
-  --images data/images/val \
-  --weights outputs/model.pth
+python -m src.evaluate --model swin --weights outputs/models/model.pth
 ```
 ---
 
@@ -170,44 +186,31 @@ docker run -it \
 
 ---
 
-## Dataset Setup
-
-The BDD100K dataset is not included in this repository due to size
-constraints.
-
-Expected directory structure:
-
-```text
-data/
-├── images/
-│   ├── train/
-│   └── val/
-├── labels/
-│   ├── bdd100k_labels_images_train.json
-│   └── bdd100k_labels_images_val.json
-```
-
-## Coding Standards
-
-- Python 3.10
-- PEP8 compliant
-- Type hints and docstrings
-- Script-driven (no notebooks required)
-- Modular and reproducible design
 
 ---
 
-## Report
+## Results
 
-Detailed analysis, observations, and findings are documented in
-REPORT.md.
+The model demonstrates:
+
+**Strengths**
+
+- accurate localization
+- strong detection for common objects such as cars
+- reasonable performance in diverse environments
+
+**Challenges**
+
+- small object detection
+- crowded scenes
+- class confusion between visually similar objects
+
+These behaviors are consistent with the dataset characteristics identified during analysis.
 
 ---
 
-## Summary
+# Report
 
-This repository demonstrates:
-- Structured dataset analysis
-- Clean ML engineering practices
-- A complete object detection pipeline
-- Reproducibility via Docker
+A detailed explanation of the methodology, experiments, and findings is provided in: **REPORT.md**
+
+
