@@ -211,6 +211,6 @@ These behaviors are consistent with the dataset characteristics identified durin
 
 # Report
 
-A detailed explanation of the methodology, experiments, and findings is provided in: **REPORT.md**
+A detailed explanation of the methodology, experiments, and findings is provided in: [Report](REPORT.md).
 
 
