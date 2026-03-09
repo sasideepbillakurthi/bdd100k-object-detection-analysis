@@ -330,6 +330,18 @@ def print_evaluation_summary(rows, conf_matrix, scores, matches):
 
     print("\n==============================\n")
 
+    print("\nTop Confusions")
+
+    cm = conf_matrix.copy()
+
+    for i in range(len(DETECTION_CLASSES)):
+        cm[i,i] = 0
+
+    indices = np.unravel_index(np.argsort(cm, axis=None)[-5:], cm.shape)
+
+    for i,j in zip(indices[0], indices[1]):
+        print(f"{DETECTION_CLASSES[i]} → {DETECTION_CLASSES[j]} : {cm[i,j]}")
+
 # ---------------------------------------------------------
 # CLI
 # ---------------------------------------------------------
