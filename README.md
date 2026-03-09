@@ -179,10 +179,10 @@ docker build -t bdd100k-analysis .
 
 ### Run Container (mount dataset)
 
-docker run -it \
-  -v /path/to/bdd100k:/app/data \
-  -p 8501:8501 \
-  bdd100k-analysis
+docker run -it --rm \
+--gpus all \
+-v "$(pwd)/data:/workspace/bdd100k-object-detection-analysis/data" \
+bdd100k-analysis
 
 ---
 
