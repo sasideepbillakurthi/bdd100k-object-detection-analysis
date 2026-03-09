@@ -8,7 +8,8 @@ Supports evaluation for:
 Produces:
 - quantitative metrics
 - per-class precision/recall
-- visualization plots
+- precision-recall curve
+- confusion matrix
 - qualitative prediction samples
 """
 
@@ -18,8 +19,11 @@ from typing import Dict
 
 import cv2
 import torch
+import numpy as np
 import pandas as pd
+import seaborn as sns
 import matplotlib.pyplot as plt
+
 from torch.utils.data import DataLoader
 from torchvision.ops import box_iou
 
@@ -54,6 +58,12 @@ def evaluate_detector(model, dataloader, device, iou_threshold=0.5):
 
     stats = {cls: {"tp": 0, "fp": 0, "fn": 0} for cls in DETECTION_CLASSES}
 
+    num_classes = len(DETECTION_CLASSES)
+    conf_matrix = np.zeros((num_classes, num_classes), dtype=int)
+
+    all_scores = []
+    all_matches = []
+
     with torch.no_grad():
 
         for images, targets in dataloader:
@@ -73,6 +83,7 @@ def evaluate_detector(model, dataloader, device, iou_threshold=0.5):
                 keep = pred_scores >= 0.5
                 pred_boxes = pred_boxes[keep]
                 pred_labels = pred_labels[keep]
+                pred_scores = pred_scores[keep]
 
                 ious = compute_iou_matrix(pred_boxes, gt_boxes)
 
@@ -81,18 +92,34 @@ def evaluate_detector(model, dataloader, device, iou_threshold=0.5):
                 for i, pred_label in enumerate(pred_labels):
 
                     cls = IDX_TO_CLASS[pred_label.item()]
+                    score = pred_scores[i].item()
 
                     if ious.shape[1] == 0:
                         stats[cls]["fp"] += 1
+                        all_scores.append(score)
+                        all_matches.append(0)
                         continue
 
                     max_iou, gt_idx = ious[i].max(0)
 
                     if max_iou >= iou_threshold and gt_idx.item() not in matched_gt:
+
                         stats[cls]["tp"] += 1
                         matched_gt.add(gt_idx.item())
+
+                        gt_cls_idx = gt_labels[gt_idx].item() - 1
+                        pred_cls_idx = pred_label.item() - 1
+
+                        conf_matrix[gt_cls_idx, pred_cls_idx] += 1
+
+                        all_scores.append(score)
+                        all_matches.append(1)
+
                     else:
+
                         stats[cls]["fp"] += 1
+                        all_scores.append(score)
+                        all_matches.append(0)
 
                 for j, gt_label in enumerate(gt_labels):
 
@@ -101,7 +128,7 @@ def evaluate_detector(model, dataloader, device, iou_threshold=0.5):
                         cls = IDX_TO_CLASS[gt_label.item()]
                         stats[cls]["fn"] += 1
 
-    return stats
+    return stats, conf_matrix, torch.tensor(all_scores), torch.tensor(all_matches)
 
 
 # ---------------------------------------------------------
@@ -136,6 +163,71 @@ def compute_precision_recall(stats: Dict):
 
 
 # ---------------------------------------------------------
+# Precision Recall Curve
+# ---------------------------------------------------------
+
+def plot_precision_recall_curve(scores, matches):
+
+    thresholds = torch.linspace(0, 1, 50)
+
+    precisions = []
+    recalls = []
+
+    for t in thresholds:
+
+        keep = scores >= t
+
+        tp = (matches[keep] == 1).sum().item()
+        fp = (matches[keep] == 0).sum().item()
+        fn = (matches == 1).sum().item() - tp
+
+        precision = tp / (tp + fp + 1e-6)
+        recall = tp / (tp + fn + 1e-6)
+
+        precisions.append(precision)
+        recalls.append(recall)
+
+    plt.figure(figsize=(6,6))
+
+    plt.plot(recalls, precisions)
+
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title("Precision-Recall Curve")
+
+    plt.grid(True)
+
+    plt.savefig(TABLES_DIR / "precision_recall_curve.png")
+
+
+# ---------------------------------------------------------
+# Confusion Matrix
+# ---------------------------------------------------------
+
+def plot_confusion_matrix(conf_matrix):
+
+    plt.figure(figsize=(10,8))
+
+    sns.heatmap(
+        conf_matrix,
+        annot=True,
+        fmt="d",
+        xticklabels=DETECTION_CLASSES,
+        yticklabels=DETECTION_CLASSES,
+        cmap="Blues"
+    )
+
+    plt.xlabel("Predicted")
+    plt.ylabel("Ground Truth")
+
+    plt.title("Detection Confusion Matrix")
+
+    plt.tight_layout()
+
+    plt.savefig(TABLES_DIR / "confusion_matrix.png")
+
+
+# ---------------------------------------------------------
 # Visualization
 # ---------------------------------------------------------
 
@@ -160,10 +252,7 @@ def plot_metrics(rows):
     plt.legend()
     plt.tight_layout()
 
-    fig_path = TABLES_DIR / "precision_recall.png"
-    plt.savefig(fig_path)
-
-    print(f"[INFO] Saved visualization: {fig_path}")
+    plt.savefig(TABLES_DIR / "precision_recall.png")
 
 
 # ---------------------------------------------------------
@@ -244,8 +333,7 @@ def main():
 
     if args.model == "fasterrcnn":
         model = build_resnet_fasterrcnn(pretrained=False)
-
-    elif args.model == "swin":
+    else:
         model = build_swin_fasterrcnn()
 
     model.load_state_dict(
@@ -254,21 +342,23 @@ def main():
 
     model.to(device)
 
-    stats = evaluate_detector(model, dataloader, device)
+    stats, conf_matrix, scores, matches = evaluate_detector(model, dataloader, device)
 
     rows = compute_precision_recall(stats)
 
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
-    output_csv = TABLES_DIR / "evaluation_metrics.csv"
-
-    pd.DataFrame(rows).to_csv(output_csv, index=False)
+    pd.DataFrame(rows).to_csv(TABLES_DIR / "evaluation_metrics.csv", index=False)
 
     plot_metrics(rows)
 
+    plot_precision_recall_curve(scores, matches)
+
+    plot_confusion_matrix(conf_matrix)
+
     save_failure_cases(dataset, model, device)
 
-    print(f"[INFO] Metrics saved to {output_csv}")
+    print("[INFO] Evaluation complete")
 
 
 if __name__ == "__main__":
