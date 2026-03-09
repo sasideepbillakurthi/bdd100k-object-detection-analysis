@@ -1,34 +1,25 @@
-# Use official Python slim image
-FROM python:3.10-slim
-
-# Avoid interactive prompts
-ENV DEBIAN_FRONTEND=noninteractive
+# Use official PyTorch image with CUDA support
+FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
 
 # Set working directory
-WORKDIR /app
+WORKDIR /workspace
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
-    curl \
+    python3-opencv \
     libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first (for better caching)
-COPY requirements.txt .
+# Copy project files
+COPY . .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+# Upgrade pip
+RUN pip install --upgrade pip
 
-# Copy source code
-COPY src/ src/
-COPY scripts/ scripts/
-COPY README.md REPORT.md ./
-
-# Create output directories
-RUN mkdir -p outputs/figures outputs/tables outputs/samples
+# Install project dependencies
+RUN pip install -r requirements.txt
 
 # Default command
 CMD ["bash"]

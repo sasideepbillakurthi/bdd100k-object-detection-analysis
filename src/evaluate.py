@@ -1,22 +1,26 @@
 """
-Evaluation script for object detection on BDD100K.
+Comprehensive evaluation script for object detection on BDD100K.
 
-Supports evaluation for:
-1. Faster R-CNN (ResNet50 + FPN)
-2. Swin Transformer + Faster R-CNN
+Metrics computed:
+- Precision
+- Recall
+- F1 Score
+- Average Precision (AP)
+- mean Average Precision (mAP@0.5)
+- mean IoU for true positives
+- Confusion Matrix
+- Precision–Recall curves
 
-Produces:
-- quantitative metrics
-- per-class precision/recall
-- precision-recall curve
-- confusion matrix
-- qualitative prediction samples
+Outputs:
+- evaluation_metrics.csv
+- precision_recall_curve.png
+- confusion_matrix.png
+- precision_recall_bar.png
+- failure examples
 """
 
 import argparse
 from pathlib import Path
-from typing import Dict
-
 import cv2
 import torch
 import numpy as np
@@ -27,7 +31,14 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from torchvision.ops import box_iou
 
-from src.config import DETECTION_CLASSES, SAMPLES_DIR, TABLES_DIR, IMAGE_DIR_VAL, LABEL_FILE_VAL
+from src.config import (
+    DETECTION_CLASSES,
+    SAMPLES_DIR,
+    TABLES_DIR,
+    IMAGE_DIR_VAL,
+    LABEL_FILE_VAL,
+)
+
 from src.dataset import BDDDetectionDataset
 from src.parser import load_annotations
 from src.train import BDDTorchDataset, collate_fn, IDX_TO_CLASS
@@ -37,32 +48,54 @@ from src.models.faster_rcnn import build_model as build_resnet_fasterrcnn
 
 
 # ---------------------------------------------------------
-# IoU Utility
+# Utility Functions
 # ---------------------------------------------------------
 
-def compute_iou_matrix(preds: torch.Tensor, targets: torch.Tensor):
+def compute_iou_matrix(pred_boxes, gt_boxes):
+    """Compute IoU matrix between predicted and ground-truth boxes."""
+    if pred_boxes.numel() == 0 or gt_boxes.numel() == 0:
+        return torch.zeros((pred_boxes.shape[0], gt_boxes.shape[0]))
+    return box_iou(pred_boxes, gt_boxes)
 
-    if preds.numel() == 0 or targets.numel() == 0:
-        return torch.zeros((preds.shape[0], targets.shape[0]))
 
-    return box_iou(preds, targets)
+def calculate_ap(recalls, precisions):
+    """
+    Compute Average Precision using the area under the PR curve.
+    Pascal VOC style interpolation.
+    """
+    mrec = np.concatenate(([0.0], recalls, [1.0]))
+    mpre = np.concatenate(([1.0], precisions, [0.0]))
+
+    for i in range(len(mpre) - 1, 0, -1):
+        mpre[i - 1] = max(mpre[i - 1], mpre[i])
+
+    idx = np.where(mrec[1:] != mrec[:-1])[0]
+    ap = np.sum((mrec[idx + 1] - mrec[idx]) * mpre[idx + 1])
+
+    return ap
 
 
 # ---------------------------------------------------------
-# Evaluation
+# Evaluation Loop
 # ---------------------------------------------------------
 
 def evaluate_detector(model, dataloader, device, iou_threshold=0.5):
+    """
+    Runs inference on validation dataset and collects statistics
+    for computing evaluation metrics.
+    """
 
     model.eval()
 
     stats = {cls: {"tp": 0, "fp": 0, "fn": 0} for cls in DETECTION_CLASSES}
 
-    num_classes = len(DETECTION_CLASSES)
-    conf_matrix = np.zeros((num_classes, num_classes), dtype=int)
+    class_scores = {cls: [] for cls in DETECTION_CLASSES}
+    class_matches = {cls: [] for cls in DETECTION_CLASSES}
 
-    all_scores = []
-    all_matches = []
+    tp_ious = []
+
+    num_classes = len(DETECTION_CLASSES)
+    confusion_matrix = np.zeros((num_classes, num_classes), dtype=int)
 
     with torch.no_grad():
 
@@ -80,73 +113,101 @@ def evaluate_detector(model, dataloader, device, iou_threshold=0.5):
                 pred_labels = output["labels"]
                 pred_scores = output["scores"]
 
-                keep = pred_scores >= 0.5
+                keep = pred_scores >= 0.05
                 pred_boxes = pred_boxes[keep]
                 pred_labels = pred_labels[keep]
                 pred_scores = pred_scores[keep]
 
                 ious = compute_iou_matrix(pred_boxes, gt_boxes)
-
                 matched_gt = set()
 
                 for i, pred_label in enumerate(pred_labels):
 
-                    cls = IDX_TO_CLASS[pred_label.item()]
+                    pred_class = IDX_TO_CLASS[pred_label.item()]
                     score = pred_scores[i].item()
 
                     if ious.shape[1] == 0:
-                        stats[cls]["fp"] += 1
-                        all_scores.append(score)
-                        all_matches.append(0)
+                        stats[pred_class]["fp"] += 1
+                        class_scores[pred_class].append(score)
+                        class_matches[pred_class].append(0)
                         continue
 
                     max_iou, gt_idx = ious[i].max(0)
 
                     if max_iou >= iou_threshold and gt_idx.item() not in matched_gt:
 
-                        stats[cls]["tp"] += 1
+                        stats[pred_class]["tp"] += 1
+                        tp_ious.append(max_iou.item())
+
                         matched_gt.add(gt_idx.item())
 
-                        gt_cls_idx = gt_labels[gt_idx].item() - 1
-                        pred_cls_idx = pred_label.item() - 1
+                        gt_class = IDX_TO_CLASS[gt_labels[gt_idx].item()]
 
-                        conf_matrix[gt_cls_idx, pred_cls_idx] += 1
+                        gt_idx_cm = DETECTION_CLASSES.index(gt_class)
+                        pred_idx_cm = DETECTION_CLASSES.index(pred_class)
 
-                        all_scores.append(score)
-                        all_matches.append(1)
+                        confusion_matrix[gt_idx_cm, pred_idx_cm] += 1
+
+                        class_scores[pred_class].append(score)
+                        class_matches[pred_class].append(1)
 
                     else:
 
-                        stats[cls]["fp"] += 1
-                        all_scores.append(score)
-                        all_matches.append(0)
+                        stats[pred_class]["fp"] += 1
+                        class_scores[pred_class].append(score)
+                        class_matches[pred_class].append(0)
 
                 for j, gt_label in enumerate(gt_labels):
-
                     if j not in matched_gt:
+                        gt_class = IDX_TO_CLASS[gt_label.item()]
+                        stats[gt_class]["fn"] += 1
 
-                        cls = IDX_TO_CLASS[gt_label.item()]
-                        stats[cls]["fn"] += 1
-
-    return stats, conf_matrix, torch.tensor(all_scores), torch.tensor(all_matches)
+    return stats, confusion_matrix, class_scores, class_matches, tp_ious
 
 
 # ---------------------------------------------------------
-# Metrics
+# Metric Computation
 # ---------------------------------------------------------
 
-def compute_precision_recall(stats: Dict):
+def compute_all_metrics(stats, class_scores, class_matches, tp_ious):
 
     rows = []
 
-    for cls, values in stats.items():
+    for cls in DETECTION_CLASSES:
 
-        tp = values["tp"]
-        fp = values["fp"]
-        fn = values["fn"]
+        tp = stats[cls]["tp"]
+        fp = stats[cls]["fp"]
+        fn = stats[cls]["fn"]
 
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        precision = tp / (tp + fp) if (tp + fp) else 0
+        recall = tp / (tp + fn) if (tp + fn) else 0
+
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if (precision + recall)
+            else 0
+        )
+
+        scores = np.array(class_scores[cls])
+        matches = np.array(class_matches[cls])
+
+        if len(matches) > 0 and np.any(matches == 1):
+
+            order = np.argsort(-scores)
+            matches = matches[order]
+
+            tp_cum = np.cumsum(matches)
+            fp_cum = np.cumsum(1 - matches)
+
+            total_gt = tp + fn
+
+            precisions = tp_cum / (tp_cum + fp_cum)
+            recalls = tp_cum / total_gt
+
+            ap = calculate_ap(recalls, precisions)
+
+        else:
+            ap = 0
 
         rows.append(
             {
@@ -156,107 +217,100 @@ def compute_precision_recall(stats: Dict):
                 "fn": fn,
                 "precision": precision,
                 "recall": recall,
+                "f1_score": f1,
+                "ap": ap,
             }
         )
 
-    return rows
+    mAP = np.mean([r["ap"] for r in rows])
+    mIoU = np.mean(tp_ious) if tp_ious else 0
 
-
-# ---------------------------------------------------------
-# Precision Recall Curve
-# ---------------------------------------------------------
-
-def plot_precision_recall_curve(scores, matches):
-
-    thresholds = torch.linspace(0, 1, 50)
-
-    precisions = []
-    recalls = []
-
-    for t in thresholds:
-
-        keep = scores >= t
-
-        tp = (matches[keep] == 1).sum().item()
-        fp = (matches[keep] == 0).sum().item()
-        fn = (matches == 1).sum().item() - tp
-
-        precision = tp / (tp + fp + 1e-6)
-        recall = tp / (tp + fn + 1e-6)
-
-        precisions.append(precision)
-        recalls.append(recall)
-
-    plt.figure(figsize=(6,6))
-
-    plt.plot(recalls, precisions)
-
-    plt.xlabel("Recall")
-    plt.ylabel("Precision")
-    plt.title("Precision-Recall Curve")
-
-    plt.grid(True)
-
-    plt.savefig(TABLES_DIR / "precision_recall_curve.png")
-
-
-# ---------------------------------------------------------
-# Confusion Matrix
-# ---------------------------------------------------------
-
-def plot_confusion_matrix(conf_matrix):
-
-    plt.figure(figsize=(10,8))
-
-    sns.heatmap(
-        conf_matrix,
-        annot=True,
-        fmt="d",
-        xticklabels=DETECTION_CLASSES,
-        yticklabels=DETECTION_CLASSES,
-        cmap="Blues"
-    )
-
-    plt.xlabel("Predicted")
-    plt.ylabel("Ground Truth")
-
-    plt.title("Detection Confusion Matrix")
-
-    plt.tight_layout()
-
-    plt.savefig(TABLES_DIR / "confusion_matrix.png")
+    return rows, mAP, mIoU
 
 
 # ---------------------------------------------------------
 # Visualization
 # ---------------------------------------------------------
 
-def plot_metrics(rows):
+def plot_precision_recall_curve(class_scores, class_matches, stats):
 
-    classes = [r["class"] for r in rows]
-    precision = [r["precision"] for r in rows]
-    recall = [r["recall"] for r in rows]
+    plt.figure(figsize=(8, 8))
 
-    plt.figure(figsize=(10, 5))
+    for cls in DETECTION_CLASSES:
 
-    x = range(len(classes))
+        scores = np.array(class_scores[cls])
+        matches = np.array(class_matches[cls])
 
-    plt.bar(x, precision, width=0.4, label="Precision")
-    plt.bar(x, recall, width=0.4, label="Recall", alpha=0.7)
+        if len(matches) == 0 or not np.any(matches == 1):
+            continue
 
-    plt.xticks(x, classes, rotation=45)
+        order = np.argsort(-scores)
+        matches = matches[order]
 
-    plt.ylabel("Score")
-    plt.title("Per-class Precision / Recall")
+        tp_cum = np.cumsum(matches)
+        fp_cum = np.cumsum(1 - matches)
 
-    plt.legend()
+        total_gt = stats[cls]["tp"] + stats[cls]["fn"]
+
+        precision = tp_cum / (tp_cum + fp_cum)
+        recall = tp_cum / total_gt
+
+        plt.plot(recall, precision, label=cls)
+
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title("Precision–Recall Curves per Class")
+    plt.legend(bbox_to_anchor=(1.05, 1))
+    plt.grid(True)
+
     plt.tight_layout()
+    plt.savefig(TABLES_DIR / "precision_recall_curve.png")
 
-    plt.savefig(TABLES_DIR / "precision_recall.png")
+
+def plot_confusion_matrix(conf_matrix):
+
+    plt.figure(figsize=(12, 10))
+
+    sns.heatmap(
+        conf_matrix,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=DETECTION_CLASSES,
+        yticklabels=DETECTION_CLASSES,
+    )
+
+    plt.xlabel("Predicted Class")
+    plt.ylabel("Ground Truth Class")
+    plt.title("Detection Confusion Matrix")
+
+    plt.tight_layout()
+    plt.savefig(TABLES_DIR / "confusion_matrix.png")
+
+
+def plot_metrics_bar(rows):
+
+    df = pd.DataFrame(rows)
+
+    df = df.melt(
+        id_vars="class",
+        value_vars=["precision", "recall", "f1_score", "ap"],
+        var_name="metric",
+    )
+
+    plt.figure(figsize=(12, 6))
+
+    sns.barplot(data=df, x="class", y="value", hue="metric")
+
+    plt.xticks(rotation=45)
+    plt.title("Per-Class Evaluation Metrics")
+
+    plt.tight_layout()
+    plt.savefig(TABLES_DIR / "precision_recall_bar.png")
 
 
 # ---------------------------------------------------------
-# Failure Case Visualization
+# Failure Visualization
 # ---------------------------------------------------------
 
 def save_failure_cases(dataset, model, device, max_samples=10):
@@ -272,93 +326,22 @@ def save_failure_cases(dataset, model, device, max_samples=10):
 
             image = dataset.load_image(image_id)
 
-            img_tensor = torch.from_numpy(image).permute(2, 0, 1) / 255.0
-            img_tensor = img_tensor.to(device)
+            tensor = torch.from_numpy(image).permute(2, 0, 1) / 255.0
+            tensor = tensor.to(device)
 
-            output = model([img_tensor])[0]
+            output = model([tensor])[0]
 
             if len(output["boxes"]) == 0 and len(anns) > 0:
 
-                out_path = SAMPLES_DIR / f"missed_{image_id}.jpg"
-
-                cv2.imwrite(str(out_path), image)
+                cv2.imwrite(
+                    str(SAMPLES_DIR / f"missed_{image_id}.jpg"),
+                    image,
+                )
 
                 saved += 1
 
             if saved >= max_samples:
                 break
-
-
-def print_evaluation_summary(rows, conf_matrix, scores, matches):
-
-    print("\n==============================")
-    print(" DETECTION EVALUATION SUMMARY ")
-    print("==============================\n")
-
-    total_tp = sum(r["tp"] for r in rows)
-    total_fp = sum(r["fp"] for r in rows)
-    total_fn = sum(r["fn"] for r in rows)
-
-    precision = total_tp / (total_tp + total_fp + 1e-6)
-    recall = total_tp / (total_tp + total_fn + 1e-6)
-
-    print("Overall Metrics")
-    print("----------------")
-    print(f"Total TP: {total_tp}")
-    print(f"Total FP: {total_fp}")
-    print(f"Total FN: {total_fn}")
-    print(f"Precision: {precision:.4f}")
-    print(f"Recall: {recall:.4f}")
-
-    print("\nPer-Class Metrics")
-    print("------------------")
-
-    for r in rows:
-        print(
-            f"{r['class']:15s} | "
-            f"P: {r['precision']:.3f} | "
-            f"R: {r['recall']:.3f} | "
-            f"TP: {r['tp']} FP: {r['fp']} FN: {r['fn']}"
-        )
-
-    print("\nPrediction Stats")
-    print("------------------")
-
-    print(f"Total predictions evaluated: {len(scores)}")
-    print(f"Matched detections: {(matches==1).sum().item()}")
-    print(f"False detections: {(matches==0).sum().item()}")
-
-    print("\n==============================\n")
-
-    print("\nTop Confusions")
-
-    cm = conf_matrix.copy()
-
-    for i in range(len(DETECTION_CLASSES)):
-        cm[i,i] = 0
-
-    indices = np.unravel_index(np.argsort(cm, axis=None)[-5:], cm.shape)
-
-    for i,j in zip(indices[0], indices[1]):
-        print(f"{DETECTION_CLASSES[i]} → {DETECTION_CLASSES[j]} : {cm[i,j]}")
-
-# ---------------------------------------------------------
-# CLI
-# ---------------------------------------------------------
-
-def parse_args():
-
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--model",
-        choices=["fasterrcnn", "swin"],
-        required=True
-    )
-
-    parser.add_argument("--weights", type=Path, required=True)
-
-    return parser.parse_args()
 
 
 # ---------------------------------------------------------
@@ -367,7 +350,12 @@ def parse_args():
 
 def main():
 
-    args = parse_args()
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--model", choices=["fasterrcnn", "swin"], required=True)
+    parser.add_argument("--weights", type=Path, required=True)
+
+    args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -375,10 +363,8 @@ def main():
 
     dataset = BDDDetectionDataset(IMAGE_DIR_VAL, annotations)
 
-    torch_dataset = BDDTorchDataset(dataset)
-
     dataloader = DataLoader(
-        torch_dataset,
+        BDDTorchDataset(dataset),
         batch_size=1,
         shuffle=False,
         collate_fn=collate_fn,
@@ -389,31 +375,52 @@ def main():
     else:
         model = build_swin_fasterrcnn()
 
-    model.load_state_dict(
-        torch.load(args.weights, map_location=device)
+    checkpoint = torch.load(args.weights, map_location=device)
+
+    state_dict = (
+        checkpoint["model_state_dict"]
+        if "model_state_dict" in checkpoint
+        else checkpoint
     )
+
+    model.load_state_dict(state_dict)
 
     model.to(device)
 
-    stats, conf_matrix, scores, matches = evaluate_detector(model, dataloader, device)
+    stats, conf_matrix, class_scores, class_matches, tp_ious = evaluate_detector(
+        model,
+        dataloader,
+        device,
+    )
 
-    rows = compute_precision_recall(stats)
-
-    print_evaluation_summary(rows, conf_matrix, scores, matches)
+    rows, mAP, mIoU = compute_all_metrics(
+        stats,
+        class_scores,
+        class_matches,
+        tp_ious,
+    )
 
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
-    pd.DataFrame(rows).to_csv(TABLES_DIR / "evaluation_metrics.csv", index=False)
+    print("\n==============================")
+    print("DETECTION EVALUATION SUMMARY")
+    print("==============================")
+    print(f"mAP@0.5 : {mAP:.4f}")
+    print(f"mIoU    : {mIoU:.4f}")
+    print("==============================\n")
 
-    plot_metrics(rows)
+    pd.DataFrame(rows).to_csv(
+        TABLES_DIR / "evaluation_metrics.csv",
+        index=False,
+    )
 
-    plot_precision_recall_curve(scores, matches)
-
+    plot_metrics_bar(rows)
+    plot_precision_recall_curve(class_scores, class_matches, stats)
     plot_confusion_matrix(conf_matrix)
 
     save_failure_cases(dataset, model, device)
 
-    print("[INFO] Evaluation complete")
+    print(f"[INFO] Results saved to {TABLES_DIR}")
 
 
 if __name__ == "__main__":
