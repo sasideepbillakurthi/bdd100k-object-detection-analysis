@@ -289,6 +289,47 @@ def save_failure_cases(dataset, model, device, max_samples=10):
                 break
 
 
+def print_evaluation_summary(rows, conf_matrix, scores, matches):
+
+    print("\n==============================")
+    print(" DETECTION EVALUATION SUMMARY ")
+    print("==============================\n")
+
+    total_tp = sum(r["tp"] for r in rows)
+    total_fp = sum(r["fp"] for r in rows)
+    total_fn = sum(r["fn"] for r in rows)
+
+    precision = total_tp / (total_tp + total_fp + 1e-6)
+    recall = total_tp / (total_tp + total_fn + 1e-6)
+
+    print("Overall Metrics")
+    print("----------------")
+    print(f"Total TP: {total_tp}")
+    print(f"Total FP: {total_fp}")
+    print(f"Total FN: {total_fn}")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall: {recall:.4f}")
+
+    print("\nPer-Class Metrics")
+    print("------------------")
+
+    for r in rows:
+        print(
+            f"{r['class']:15s} | "
+            f"P: {r['precision']:.3f} | "
+            f"R: {r['recall']:.3f} | "
+            f"TP: {r['tp']} FP: {r['fp']} FN: {r['fn']}"
+        )
+
+    print("\nPrediction Stats")
+    print("------------------")
+
+    print(f"Total predictions evaluated: {len(scores)}")
+    print(f"Matched detections: {(matches==1).sum().item()}")
+    print(f"False detections: {(matches==0).sum().item()}")
+
+    print("\n==============================\n")
+
 # ---------------------------------------------------------
 # CLI
 # ---------------------------------------------------------
@@ -345,6 +386,8 @@ def main():
     stats, conf_matrix, scores, matches = evaluate_detector(model, dataloader, device)
 
     rows = compute_precision_recall(stats)
+
+    print_evaluation_summary(rows, conf_matrix, scores, matches)
 
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
