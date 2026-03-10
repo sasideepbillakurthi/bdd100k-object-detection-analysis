@@ -769,33 +769,83 @@ For example:
 
 ---
 
-### 5.9 Potential Improvements
+## 6. Limitations and Future Work
 
-Based on the evaluation results, several improvements could enhance model performance.
+Due to limited computational resources and time constraints, several potential improvements were not explored in this project. If additional time and resources were available, the following enhancements could be investigated to improve model performance.
 
-#### Longer Training
+### 6.1 Longer Training
 
-The model was trained for only **one epoch**, so additional training epochs would likely improve detection accuracy significantly.
+The model was trained for only **one epoch on a subset of the dataset** due to limited GPU availability. Training the model for more epochs on the **full dataset** would likely improve detection accuracy and reduce missed detections.
 
-#### Improved Small Object Detection
-
-Possible improvements include:
-
-- higher input resolution
-- additional pyramid levels in FPN
-- multi-scale training strategies.
-
-#### Address Class Imbalance
-
-Class imbalance could be mitigated using:
-
-- focal loss
-- class-balanced sampling
-- targeted data augmentation.
+Longer training schedules typically allow the model to learn stronger feature representations and improve generalization.
 
 ---
 
-## 5.10 Summary
+### 6.2 Hyperparameter Tuning
+
+The training pipeline currently uses standard hyperparameters for Faster R-CNN. Additional experimentation could include:
+
+- learning rate scheduling strategies
+- different optimizer configurations
+- batch size adjustments
+- improved anchor configurations
+
+Careful hyperparameter tuning often leads to measurable improvements in detection performance.
+
+---
+
+### 6.3 Improved Small Object Detection
+
+Dataset analysis showed that many objects in the BDD100K dataset are **small**, particularly traffic lights and traffic signs.
+
+Potential improvements include:
+
+- increasing input image resolution
+- adding additional feature pyramid levels
+- applying multi-scale training strategies
+
+These techniques can improve detection performance for small objects.
+
+---
+
+### 6.4 Data Augmentation
+
+Data augmentation techniques could be applied to increase training diversity, such as:
+
+- random scaling
+- brightness and contrast variations
+- horizontal flipping
+- weather simulation
+
+Augmentation can help the model generalize better to diverse driving conditions.
+
+---
+
+### 6.5 Additional Architectures
+
+While this project explored **Faster R-CNN with a Swin Transformer backbone**, other modern object detection architectures could be evaluated, such as:
+
+- RetinaNet
+- YOLO-based detectors
+- DETR-style transformer detectors
+
+Comparing multiple architectures would provide deeper insights into how model design influences detection performance on the BDD100K dataset.
+
+---
+
+### 6.6 Extended Evaluation
+
+Future work could also include more extensive evaluation metrics such as:
+
+- mAP across multiple IoU thresholds (COCO-style evaluation)
+- inference speed analysis
+- robustness evaluation under different weather conditions
+
+These experiments would provide a more comprehensive understanding of model performance.
+
+---
+
+## Summary
 
 The evaluation demonstrates that the implemented detection pipeline successfully trains and evaluates a **Swin Transformer + Faster R-CNN detector** on the BDD100K dataset.
 
